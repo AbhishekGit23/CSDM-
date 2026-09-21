@@ -1,0 +1,827 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>package_private</access>
+        <active>true</active>
+        <api_name>x_147805_csdmviz.CSDMScoreCalculator</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description>Server-side calculator for CSDM 5.0 adherence scoring across 7 dimensions</description>
+        <mobile_callable>false</mobile_callable>
+        <name>CSDMScoreCalculator</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[var CSDMScoreCalculator = Class.create()
+CSDMScoreCalculator.prototype = {
+    initialize: function () {},
+
+    /**
+     * Dimension 1: Domain Coverage (Weight: 15%)
+     * Checks 5 CSDM domain layers for populated tables.
+     */
+    calculateDomainCoverage: function () {
+        var domains = {
+            foundation: {
+                label: 'Foundation',
+                tables: [
+                    'cmdb_ci_server',
+                    'cmdb_ci_computer',
+                    'cmdb_ci_vm_instance',
+                    'cmdb_ci_network_gear',
+                    'cmdb_ci_storage_device',
+                    'cmdb_ci_database_instance',
+                    'cmn_location',
+                    'core_company',
+                    'cmn_department',
+                ],
+            },
+            design_application: {
+                label: 'Design - Application Portfolio',
+                tables: [
+                    'cmdb_ci_business_app',
+                    'cmdb_ci_appl',
+                    'cmdb_software_instance',
+                    'cmdb_ci_spkg',
+                ],
+            },
+            manage_technical: {
+                label: 'Manage Technical Services',
+                tables: [
+                    'cmdb_ci_service_technical',
+                    'cmdb_ci_service_auto',
+                    'cmdb_ci_service_discovered',
+                    'cmdb_ci_endpoint',
+                ],
+            },
+            manage_business: {
+                label: 'Manage Business Services',
+                tables: ['cmdb_ci_service', 'service_offering'],
+            },
+            sell_consume: {
+                label: 'Sell/Consume',
+                tables: [
+                    'sc_cat_item',
+                    'sc_request',
+                    'incident',
+                    'change_request',
+                ],
+            },
+        }
+
+        var totalClasses = 0
+        var populatedClasses = 0
+        var domainDetails = {}
+
+        for (var key in domains) {
+            if (!domains.hasOwnProperty(key)) continue
+            var d = domains[key]
+            var domainResult = {
+                label: d.label,
+                totalTables: d.tables.length,
+                populatedTables: 0,
+                tables: [],
+            }
+
+            for (var i = 0; i < d.tables.length; i++) {
+                var tableName = d.tables[i]
+                var count = 0
+
+                try {
+                    var ga = new GlideAggregate(tableName)
+                    ga.addAggregate('COUNT')
+                    ga.query()
+                    if (ga.next()) {
+                        count = parseInt(ga.getAggregate('COUNT'), 10) || 0
+                    }
+                } catch (e) {
+                    count = 0
+                }
+
+                totalClasses++
+                if (count > 0) {
+                    populatedClasses++
+                    domainResult.populatedTables++
+                }
+
+                domainResult.tables.push({
+                    table: tableName,
+                    count: count,
+                    populated: count > 0,
+                })
+            }
+
+            domainDetails[key] = domainResult
+        }
+
+        var score =
+            totalClasses > 0
+                ? Math.round((populatedClasses / totalClasses) * 100)
+                : 0
+
+        return {
+            score: score,
+            weight: 0.15,
+            label: 'Domain Coverage',
+            description:
+                populatedClasses +
+                '/' +
+                totalClasses +
+                ' CSDM classes populated (' +
+                score +
+                '%)',
+            details: {
+                domains: domainDetails,
+                totalClasses: totalClasses,
+                populatedClasses: populatedClasses,
+            },
+        }
+    },
+
+    /**
+     * Dimension 2: Data Completeness (Weight: 20%)
+     * Checks critical fields on 3 key tables.
+     */
+    calculateDataCompleteness: function () {
+        var tableChecks = [
+            {
+                table: 'cmdb_ci_server',
+                fields: [
+                    'name',
+                    'ip_address',
+                    'os',
+                    'serial_number',
+                    'ram',
+                    'cpu_count',
+                    'manufacturer',
+                ],
+            },
+            {
+                table: 'cmdb_ci_appl',
+                fields: [
+                    'name',
+                    'version',
+                    'install_status',
+                    'owned_by',
+                    'managed_by',
+                    'used_for',
+                ],
+            },
+            {
+                table: 'cmdb_ci_service',
+                fields: [
+                    'name',
+                    'owned_by',
+                    'managed_by',
+                    'service_classification',
+                    'used_for',
+                    'busines_criticality',
+                ],
+            },
+        ]
+
+        var tableResults = []
+        var totalCompleteness = 0
+
+        for (var t = 0; t < tableChecks.length; t++) {
+            var check = tableChecks[t]
+            var totalRecords = 0
+            var completeRecords = 0
+
+            try {
+                // Count total records
+                var gaTotal = new GlideAggregate(check.table)
+                gaTotal.addAggregate('COUNT')
+                gaTotal.query()
+                if (gaTotal.next()) {
+                    totalRecords =
+                        parseInt(gaTotal.getAggregate('COUNT'), 10) || 0
+                }
+
+                // Count records with ALL critical fields filled
+                if (totalRecords > 0) {
+                    var gr = new GlideRecord(check.table)
+                    for (var f = 0; f < check.fields.length; f++) {
+                        gr.addNotNullQuery(check.fields[f])
+                    }
+                    gr.query()
+                    completeRecords = gr.getRowCount()
+                }
+            } catch (e) {
+                totalRecords = 0
+                completeRecords = 0
+            }
+
+            var completeness =
+                totalRecords > 0
+                    ? Math.round((completeRecords / totalRecords) * 100)
+                    : 0
+            totalCompleteness += completeness
+
+            tableResults.push({
+                table: check.table,
+                totalRecords: totalRecords,
+                completeRecords: completeRecords,
+                completeness: completeness,
+                fields: check.fields,
+            })
+        }
+
+        var score =
+            tableChecks.length > 0
+                ? Math.round(totalCompleteness / tableChecks.length)
+                : 0
+
+        return {
+            score: score,
+            weight: 0.2,
+            label: 'Data Completeness',
+            description:
+                'Avg completeness across 3 key tables: ' + score + '%',
+            details: {
+                tables: tableResults,
+            },
+        }
+    },
+
+    /**
+     * Dimension 3: Service Model Depth (Weight: 20%)
+     * Checks the full CSDM service model hierarchy chain.
+     */
+    calculateServiceModelDepth: function () {
+        var levels = [
+            {
+                name: 'Business Service',
+                table: 'cmdb_ci_service',
+                populated: false,
+                count: 0,
+            },
+            {
+                name: 'Service Offering',
+                table: 'service_offering',
+                populated: false,
+                count: 0,
+            },
+            {
+                name: 'Technical Service',
+                table: 'cmdb_ci_service_technical',
+                populated: false,
+                count: 0,
+            },
+            {
+                name: 'Application Service',
+                table: 'cmdb_ci_service_auto',
+                populated: false,
+                count: 0,
+            },
+            {
+                name: 'Application',
+                table: 'cmdb_ci_appl',
+                populated: false,
+                count: 0,
+            },
+            {
+                name: 'Infrastructure',
+                table: 'cmdb_ci_server',
+                populated: false,
+                count: 0,
+            },
+        ]
+
+        var populatedLevels = 0
+
+        for (var i = 0; i < levels.length; i++) {
+            try {
+                var ga = new GlideAggregate(levels[i].table)
+                ga.addAggregate('COUNT')
+                ga.query()
+                if (ga.next()) {
+                    var cnt = parseInt(ga.getAggregate('COUNT'), 10) || 0
+                    levels[i].count = cnt
+                    if (cnt > 0) {
+                        levels[i].populated = true
+                        populatedLevels++
+                    }
+                }
+            } catch (e) {
+                levels[i].count = 0
+            }
+        }
+
+        // Check key relationships between adjacent layers
+        var relationshipBonus = 0
+        try {
+            var relGa = new GlideAggregate('cmdb_rel_ci')
+            relGa.addAggregate('COUNT')
+            relGa.query()
+            if (relGa.next()) {
+                var relCount =
+                    parseInt(relGa.getAggregate('COUNT'), 10) || 0
+                if (relCount > 0) {
+                    relationshipBonus = 10
+                }
+            }
+        } catch (e) {
+            relationshipBonus = 0
+        }
+
+        var baseScore = Math.round((populatedLevels / 6) * 100)
+        var score = Math.min(100, baseScore + relationshipBonus)
+        var chainComplete = populatedLevels === 6
+
+        return {
+            score: score,
+            weight: 0.2,
+            label: 'Service Model Depth',
+            description:
+                populatedLevels +
+                '/6 hierarchy levels populated' +
+                (chainComplete ? ' (full chain)' : '') +
+                (relationshipBonus > 0
+                    ? ', +' + relationshipBonus + '% relationship bonus'
+                    : ''),
+            details: {
+                levels: levels,
+                chainComplete: chainComplete,
+                populatedLevels: populatedLevels,
+                relationshipBonus: relationshipBonus,
+            },
+        }
+    },
+
+    /**
+     * Dimension 4: Relationship Compliance (Weight: 15%)
+     * Checks recommended vs total relationship types.
+     */
+    calculateRelationshipCompliance: function () {
+        var recTypes = [
+            'Runs on::Runs',
+            'Hosted on::Hosts',
+            'Depends on::Used by',
+            'Contains::Contained by',
+            'Provides::Provided by',
+        ]
+
+        var totalRels = 0
+        var recommendedRels = 0
+        var nonRecommendedRels = 0
+        var typeDistribution = []
+
+        try {
+            var ga = new GlideAggregate('cmdb_rel_ci')
+            ga.addAggregate('COUNT')
+            ga.groupBy('type')
+            ga.orderByAggregate('COUNT', 'DESC')
+            ga.query()
+
+            while (ga.next()) {
+                var typeName = ga.type.getDisplayValue() || 'Unknown'
+                var cnt = parseInt(ga.getAggregate('COUNT'), 10) || 0
+                var isRecommended = false
+
+                for (var r = 0; r < recTypes.length; r++) {
+                    if (
+                        typeName.indexOf(recTypes[r].split('::')[0]) >= 0
+                    ) {
+                        isRecommended = true
+                        break
+                    }
+                }
+
+                totalRels += cnt
+                if (isRecommended) {
+                    recommendedRels += cnt
+                } else {
+                    nonRecommendedRels += cnt
+                }
+
+                typeDistribution.push({
+                    type_name: typeName,
+                    count: cnt,
+                    recommended: isRecommended,
+                })
+            }
+        } catch (e) {
+            totalRels = 0
+        }
+
+        var score =
+            totalRels > 0
+                ? Math.round((recommendedRels / totalRels) * 100)
+                : 0
+
+        return {
+            score: score,
+            weight: 0.15,
+            label: 'Relationship Compliance',
+            description:
+                recommendedRels +
+                '/' +
+                totalRels +
+                ' relationships use recommended types (' +
+                score +
+                '%)',
+            details: {
+                total: totalRels,
+                recommended: recommendedRels,
+                nonRecommended: nonRecommendedRels,
+                typeDistribution: typeDistribution,
+            },
+        }
+    },
+
+    /**
+     * Dimension 5: Lifecycle Governance (Weight: 10%)
+     * Checks if critical CIs have lifecycle stage populated.
+     */
+    calculateLifecycleGovernance: function () {
+        var criticalTables = [
+            'cmdb_ci_server',
+            'cmdb_ci_appl',
+            'cmdb_ci_service',
+            'cmdb_ci_service_technical',
+        ]
+
+        var totalCriticalCIs = 0
+        var withLifecycle = 0
+        var tableDetails = []
+
+        for (var t = 0; t < criticalTables.length; t++) {
+            var tableName = criticalTables[t]
+            var tableTotal = 0
+            var tableWithLC = 0
+
+            try {
+                // Total records
+                var gaTotal = new GlideAggregate(tableName)
+                gaTotal.addAggregate('COUNT')
+                gaTotal.query()
+                if (gaTotal.next()) {
+                    tableTotal =
+                        parseInt(gaTotal.getAggregate('COUNT'), 10) || 0
+                }
+
+                // Records with lifecycle stage or status
+                if (tableTotal > 0) {
+                    var gr = new GlideRecord(tableName)
+                    var qc = gr.addNotNullQuery('life_cycle_stage')
+                    qc.addOrCondition('life_cycle_stage_status', '!=', '')
+                    gr.query()
+                    tableWithLC = gr.getRowCount()
+                }
+            } catch (e) {
+                tableTotal = 0
+                tableWithLC = 0
+            }
+
+            totalCriticalCIs += tableTotal
+            withLifecycle += tableWithLC
+
+            tableDetails.push({
+                table: tableName,
+                total: tableTotal,
+                withLifecycle: tableWithLC,
+            })
+        }
+
+        var score =
+            totalCriticalCIs > 0
+                ? Math.round((withLifecycle / totalCriticalCIs) * 100)
+                : 0
+
+        return {
+            score: score,
+            weight: 0.1,
+            label: 'Lifecycle Governance',
+            description:
+                withLifecycle +
+                '/' +
+                totalCriticalCIs +
+                ' critical CIs have lifecycle status set',
+            details: {
+                total: totalCriticalCIs,
+                withLifecycle: withLifecycle,
+                tables: tableDetails,
+            },
+        }
+    },
+
+    /**
+     * Dimension 6: Data Hygiene (Weight: 10%)
+     * Checks for stale and orphaned CIs.
+     */
+    calculateDataHygiene: function () {
+        var totalCIs = 0
+        var staleCIs = 0
+        var orphanedCIs = 0
+
+        try {
+            // Total CIs
+            var gaTotal = new GlideAggregate('cmdb_ci')
+            gaTotal.addAggregate('COUNT')
+            gaTotal.query()
+            if (gaTotal.next()) {
+                totalCIs =
+                    parseInt(gaTotal.getAggregate('COUNT'), 10) || 0
+            }
+
+            // Stale CIs: not updated in 180 days
+            var staleDate = new GlideDateTime()
+            staleDate.addDaysLocalTime(-180)
+
+            var gaStale = new GlideAggregate('cmdb_ci')
+            gaStale.addAggregate('COUNT')
+            gaStale.addQuery('sys_updated_on', '<', staleDate.getValue())
+            gaStale.query()
+            if (gaStale.next()) {
+                staleCIs =
+                    parseInt(gaStale.getAggregate('COUNT'), 10) || 0
+            }
+
+            // Orphaned CIs: not in any relationship
+            var cisWithRels = 0
+
+            // Count distinct CIs that appear as parent
+            var gaParent = new GlideAggregate('cmdb_rel_ci')
+            gaParent.addAggregate('COUNT', 'DISTINCT', 'parent')
+            gaParent.query()
+            var parentCount = 0
+            if (gaParent.next()) {
+                parentCount =
+                    parseInt(
+                        gaParent.getAggregate('COUNT', 'DISTINCT', 'parent'),
+                        10
+                    ) || 0
+            }
+
+            // Count distinct CIs that appear as child
+            var gaChild = new GlideAggregate('cmdb_rel_ci')
+            gaChild.addAggregate('COUNT', 'DISTINCT', 'child')
+            gaChild.query()
+            var childCount = 0
+            if (gaChild.next()) {
+                childCount =
+                    parseInt(
+                        gaChild.getAggregate('COUNT', 'DISTINCT', 'child'),
+                        10
+                    ) || 0
+            }
+
+            // Approximate unique CIs with relationships (may overlap)
+            cisWithRels = Math.min(
+                totalCIs,
+                Math.max(parentCount, childCount)
+            )
+            orphanedCIs = Math.max(0, totalCIs - cisWithRels)
+        } catch (e) {
+            totalCIs = 0
+            staleCIs = 0
+            orphanedCIs = 0
+        }
+
+        var score = 0
+        if (totalCIs > 0) {
+            score = Math.max(
+                0,
+                Math.round(
+                    100 -
+                        (staleCIs / totalCIs) * 50 -
+                        (orphanedCIs / totalCIs) * 50
+                )
+            )
+        }
+
+        return {
+            score: score,
+            weight: 0.1,
+            label: 'Data Hygiene',
+            description:
+                staleCIs +
+                ' stale CIs (>180 days), ~' +
+                orphanedCIs +
+                ' potentially orphaned',
+            details: {
+                staleCIs: staleCIs,
+                orphanedCIs: orphanedCIs,
+                totalCIs: totalCIs,
+                staleThresholdDays: 180,
+            },
+        }
+    },
+
+    /**
+     * Dimension 7: Customization Risk (Weight: 10%)
+     * Checks for custom fields and business rules on core CMDB tables.
+     */
+    calculateCustomizationRisk: function () {
+        var coreTables = [
+            'cmdb_ci',
+            'cmdb_ci_server',
+            'cmdb_ci_appl',
+            'cmdb_ci_service',
+        ]
+        var customizations = []
+        var highCount = 0
+        var mediumCount = 0
+        var lowCount = 0
+
+        for (var t = 0; t < coreTables.length; t++) {
+            var tableName = coreTables[t]
+
+            // Custom fields (medium risk)
+            try {
+                var dictGr = new GlideRecord('sys_dictionary')
+                dictGr.addQuery('name', tableName)
+                dictGr.addQuery('element', 'STARTSWITH', 'u_')
+                dictGr.query()
+                while (dictGr.next()) {
+                    customizations.push({
+                        type: 'custom_field',
+                        severity: 'medium',
+                        table: tableName,
+                        name: dictGr.getValue('element') || '',
+                        description:
+                            'Custom field on ' +
+                            tableName +
+                            ': ' +
+                            (dictGr.getValue('element') || ''),
+                    })
+                    mediumCount++
+                }
+            } catch (e) {
+                /* skip */
+            }
+
+            // Custom business rules (high risk)
+            try {
+                var brGr = new GlideRecord('sys_script')
+                brGr.addQuery('collection', tableName)
+                brGr.addQuery('sys_scope', '!=', 'global')
+                brGr.addQuery('active', 'true')
+                brGr.query()
+                while (brGr.next()) {
+                    customizations.push({
+                        type: 'business_rule',
+                        severity: 'high',
+                        table: tableName,
+                        name: brGr.getValue('name') || 'Unknown',
+                        description:
+                            'Custom BR on ' +
+                            tableName +
+                            ': ' +
+                            (brGr.getValue('name') || ''),
+                    })
+                    highCount++
+                }
+            } catch (e) {
+                /* skip */
+            }
+        }
+
+        var totalCustomizations = highCount + mediumCount + lowCount
+        var score = Math.max(
+            0,
+            100 - (highCount * 10 + mediumCount * 5 + lowCount * 2)
+        )
+
+        return {
+            score: score,
+            weight: 0.1,
+            label: 'Customization Risk',
+            description:
+                totalCustomizations +
+                ' customizations found (' +
+                highCount +
+                ' high, ' +
+                mediumCount +
+                ' medium, ' +
+                lowCount +
+                ' low risk)',
+            details: {
+                customizations: customizations,
+                summary: {
+                    total: totalCustomizations,
+                    high: highCount,
+                    medium: mediumCount,
+                    low: lowCount,
+                },
+            },
+        }
+    },
+
+    /**
+     * Orchestrator: Runs all 7 dimension calculations and produces the full result.
+     */
+    runFullScan: function () {
+        var dimensions = []
+
+        dimensions.push(this.calculateDomainCoverage())
+        dimensions.push(this.calculateDataCompleteness())
+        dimensions.push(this.calculateServiceModelDepth())
+        dimensions.push(this.calculateRelationshipCompliance())
+        dimensions.push(this.calculateLifecycleGovernance())
+        dimensions.push(this.calculateDataHygiene())
+        dimensions.push(this.calculateCustomizationRisk())
+
+        // Calculate weighted overall score
+        var overallScore = 0
+        for (var i = 0; i < dimensions.length; i++) {
+            overallScore += dimensions[i].score * dimensions[i].weight
+        }
+        overallScore = Math.round(overallScore)
+
+        // Extract domain coverage details for scan_result fields
+        var domainCoverage = dimensions[0]
+        var totalClasses = domainCoverage.details.totalClasses || 0
+        var populatedClasses =
+            domainCoverage.details.populatedClasses || 0
+
+        // Count risks and relationship issues
+        var riskDimension = dimensions[6]
+        var riskCount = riskDimension.details.summary
+            ? riskDimension.details.summary.total
+            : 0
+        var relDimension = dimensions[3]
+        var relationshipIssues = relDimension.details.nonRecommended || 0
+
+        var result = {
+            score: overallScore,
+            scanTime: new GlideDateTime().getDisplayValue(),
+            dimensions: dimensions,
+            summary: {
+                totalClasses: totalClasses,
+                populatedClasses: populatedClasses,
+                riskCount: riskCount,
+                relationshipIssues: relationshipIssues,
+            },
+        }
+
+        // Persist the scan result
+        this._saveScanResult(result)
+
+        return result
+    },
+
+    /**
+     * Private helper: Saves the scan result to x_147805_csdmviz_scan_result.
+     */
+    _saveScanResult: function (result) {
+        try {
+            var gr = new GlideRecord('x_147805_csdmviz_scan_result')
+            gr.initialize()
+            gr.setValue(
+                'scan_name',
+                'CSDM Scan ' + new GlideDateTime().getDisplayValue()
+            )
+            gr.setValue('scan_date', new GlideDateTime().getValue())
+            gr.setValue('status', 'completed')
+            gr.setValue('overall_score', result.score)
+            gr.setValue('total_classes', result.summary.totalClasses)
+            gr.setValue(
+                'populated_classes',
+                result.summary.populatedClasses
+            )
+            gr.setValue('risk_count', result.summary.riskCount)
+            gr.setValue(
+                'relationship_issues',
+                result.summary.relationshipIssues
+            )
+            gr.setValue(
+                'summary',
+                'CSDM 5.0 Adherence Score: ' +
+                    result.score +
+                    '% | ' +
+                    result.summary.populatedClasses +
+                    '/' +
+                    result.summary.totalClasses +
+                    ' classes populated | ' +
+                    result.summary.riskCount +
+                    ' risks | ' +
+                    result.summary.relationshipIssues +
+                    ' relationship issues'
+            )
+            gr.setValue('scan_data', JSON.stringify(result))
+            return gr.insert()
+        } catch (e) {
+            gs.error(
+                'CSDMScoreCalculator: Failed to save scan result - ' +
+                    e.message
+            )
+            return null
+        }
+    },
+
+    type: 'CSDMScoreCalculator',
+}
+]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2026-09-21 11:51:08</sys_created_on>
+        <sys_id>8aeb033c48c946c0bb5baf67f958f29a</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>CSDMScoreCalculator</sys_name>
+        <sys_package display_value="CSDMViz" source="x_147805_csdmviz">1c9af66f83340350c07713e0deaad3c3</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="CSDMViz">1c9af66f83340350c07713e0deaad3c3</sys_scope>
+        <sys_update_name>sys_script_include_8aeb033c48c946c0bb5baf67f958f29a</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2026-09-21 11:51:08</sys_updated_on>
+    </sys_script_include>
+</record_update>

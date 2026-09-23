@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_ws_operation">
+    <sys_ws_operation action="INSERT_OR_UPDATE">
+        <active>true</active>
+        <consumes>application/json,application/xml,text/xml</consumes>
+        <consumes_customized>false</consumes_customized>
+        <default_operation_uri/>
+        <enforce_acl>cf9d01d3e73003009d6247e603f6a990</enforce_acl>
+        <http_method>GET</http_method>
+        <name>Get Latest Scan</name>
+        <operation_script><![CDATA[(function process(/*RESTAPIRequest*/ request, /*RESTAPIResponse*/ response) {
+
+    var TABLE_LABELS = {
+        cmdb_ci_server: 'Server',
+        cmdb_ci_computer: 'Computer',
+        cmdb_ci_vm_instance: 'Virtual Machine',
+        cmdb_ci_network_gear: 'Network Gear',
+        cmdb_ci_storage_device: 'Storage Device',
+        cmdb_ci_database_instance: 'Database Instance',
+        cmn_location: 'Location',
+        core_company: 'Company',
+        cmn_department: 'Department',
+        cmdb_ci_business_app: 'Business Application',
+        cmdb_ci_appl: 'Application',
+        cmdb_software_instance: 'Software Instance',
+        cmdb_ci_spkg: 'Software Package',
+        cmdb_ci_service_technical: 'Technical Service',
+        cmdb_ci_service_auto: 'Application Service',
+        cmdb_ci_service_discovered: 'Discovered Service',
+        cmdb_ci_endpoint: 'Endpoint',
+        cmdb_ci_service: 'Business Service',
+        service_offering: 'Service Offering',
+        sc_cat_item: 'Catalog Item',
+        sc_request: 'Service Request',
+        incident: 'Incident',
+        change_request: 'Change Request'
+    };
+
+    var RECOMMENDED_REL_KEYWORDS = [
+        'Runs on', 'Hosted on', 'Depends on', 'Used by', 'Contains',
+        'Contained by', 'Provides', 'Provided by', 'Members',
+        'Member of', 'Manages', 'Managed by'
+    ];
+
+    var DIMENSION_KEYS = [
+        'domain_coverage',
+        'data_completeness',
+        'service_model',
+        'relationship_compliance',
+        'lifecycle_governance',
+        'data_hygiene',
+        'customization_risk'
+    ];
+
+    function getHealth(count) {
+        if (count > 10) return 'good';
+        if (count > 0) return 'low';
+        return 'empty';
+    }
+
+    /**
+     * Transforms the server-side runFullScan() result (dimensions as ARRAY)
+     * into the client-expected shape (dimensions as OBJECT + population/risks/relationships).
+     * If the data is already in client format, passes through unchanged.
+     */
+    function transformForClient(raw) {
+        if (!raw) return null;
+
+        // If already in client format (dimensions is an object, not array), pass through
+        if (raw.dimensions && !Array.isArray(raw.dimensions)) {
+            return raw;
+        }
+
+        var dims = raw.dimensions || [];
+        var summary = raw.summary || {};
+
+        // 1. Build dimensions object
+        var dimensions = {};
+        for (var i = 0; i < dims.length && i < DIMENSION_KEYS.length; i++) {
+            var dim = dims[i];
+            var key = DIMENSION_KEYS[i];
+            dimensions[key] = {
+                score: dim.score || 0,
+                weight: dim.weight || 0,
+                label: dim.label || key,
+                detail: dim.description || ''
+            };
+        }
+
+        // 2. Build population from domain_coverage (index 0)
+        var domainCovDim = dims.length > 0 ? dims[0] : null;
+        var domainCovDetails = domainCovDim && domainCovDim.details ? domainCovDim.details : {};
+        var rawDomains = domainCovDetails.domains || {};
+        var populationDomains = {};
+        var totalClasses = 0;
+        var populatedClasses = 0;
+
+        var domainKeys = Object.keys(rawDomains);
+        for (var d = 0; d < domainKeys.length; d++) {
+            var domainKey = domainKeys[d];
+            var domain = rawDomains[domainKey];
+            var tables = domain.tables || [];
+            var classes = [];
+            var popCount = 0;
+
+            for (var t = 0; t < tables.length; t++) {
+                var tbl = tables[t];
+                var count = tbl.count || 0;
+                var populated = tbl.populated === true || count > 0;
+                if (populated) popCount++;
+                totalClasses++;
+                if (populated) populatedClasses++;
+
+                classes.push({
+                    table: tbl.table,
+                    label: TABLE_LABELS[tbl.table] || tbl.table,
+                    count: count,
+                    populated: populated,
+                    health: getHealth(count),
+                    category: 'general'
+                });
+            }
+
+            populationDomains[domainKey] = {
+                label: domain.label || domainKey,
+                classes: classes,
+                totalCount: domain.totalTables || tables.length,
+                populatedCount: domain.populatedTables || popCount
+            };
+        }
+
+        if (summary.totalClasses) totalClasses = summary.totalClasses;
+        if (summary.populatedClasses) populatedClasses = summary.populatedClasses;
+        var coveragePercent = totalClasses > 0 ? Math.round((populatedClasses / totalClasses) * 100) : 0;
+
+        // 3. Build risks from customization_risk (index 6)
+        var custDim = dims.length > 6 ? dims[6] : null;
+        var custDetails = custDim && custDim.details ? custDim.details : {};
+        var risksList = custDetails.customizations || [];
+        var custSummary = custDetails.summary || {};
+        var highCount = 0, medCount = 0, lowCount = 0;
+        for (var r = 0; r < risksList.length; r++) {
+            var sev = risksList[r].severity;
+            if (sev === 'high') highCount++;
+            else if (sev === 'medium') medCount++;
+            else lowCount++;
+        }
+
+        // 4. Relationships from index 3
+        var relDim = dims.length > 3 ? dims[3] : null;
+        var relDetails = relDim && relDim.details ? relDim.details : {};
+
+        // 5. DataCompleteness from index 1
+        var dataDim = dims.length > 1 ? dims[1] : null;
+        var dataDetails = dataDim && dataDim.details ? dataDim.details : {};
+        var dataChecks = dataDetails.checks || [];
+
+        // 6. ServiceModel from index 2
+        var svcDim = dims.length > 2 ? dims[2] : null;
+        var svcDetails = svcDim && svcDim.details ? svcDim.details : {};
+        var svcChain = svcDetails.chain || {};
+
+        // 7. DataHygiene from index 5
+        var hygDim = dims.length > 5 ? dims[5] : null;
+        var hygDetails = hygDim && hygDim.details ? hygDim.details : {};
+
+        return {
+            score: raw.score || 0,
+            scanTime: raw.scanTime || '',
+            dimensions: dimensions,
+            population: {
+                domains: populationDomains,
+                summary: {
+                    totalClasses: totalClasses,
+                    populatedClasses: populatedClasses,
+                    coveragePercent: coveragePercent
+                }
+            },
+            risks: {
+                risks: risksList,
+                summary: {
+                    total: risksList.length,
+                    high: custSummary.high !== undefined ? custSummary.high : highCount,
+                    medium: custSummary.medium !== undefined ? custSummary.medium : medCount,
+                    low: custSummary.low !== undefined ? custSummary.low : lowCount
+                }
+            },
+            relationships: {
+                issues: [],
+                stats: {
+                    total: relDetails.total || 0,
+                    recommended: relDetails.recommended || 0,
+                    non_recommended: relDetails.nonRecommended || 0
+                },
+                typeDistribution: relDetails.typeDistribution || [],
+                recommendedTypes: RECOMMENDED_REL_KEYWORDS
+            },
+            dataCompleteness: dataChecks,
+            serviceModel: svcChain,
+            dataHygiene: {
+                stale: hygDetails.stale || 0,
+                orphaned: hygDetails.orphaned || 0
+            }
+        };
+    }
+
+    // Query for the most recent scan result
+    var gr = new GlideRecord('x_147805_csdmviz_scan_result');
+    gr.orderByDesc('scan_date');
+    gr.setLimit(1);
+    gr.query();
+    if (gr.next()) {
+        var scanDataStr = gr.getValue('scan_data');
+        try {
+            var scanData = JSON.parse(scanDataStr);
+            var transformed = transformForClient(scanData);
+            response.setBody(transformed);
+        } catch (e) {
+            response.setStatus(500);
+            response.setBody({ error: 'Failed to parse cached scan data' });
+        }
+    } else {
+        response.setStatus(404);
+        response.setBody({ error: 'No scan results found' });
+    }
+
+})(request, response);
+]]></operation_script>
+        <operation_uri>/api/x_147805_csdmviz/csdm_scan/latest</operation_uri>
+        <produces>application/json</produces>
+        <produces_customized>false</produces_customized>
+        <relative_path>/latest</relative_path>
+        <request_example/>
+        <requires_acl_authorization>true</requires_acl_authorization>
+        <requires_authentication>true</requires_authentication>
+        <requires_snc_internal_role>true</requires_snc_internal_role>
+        <short_description>Get the most recent cached scan result</short_description>
+        <support_trailing_slash>false</support_trailing_slash>
+        <sys_class_name>sys_ws_operation</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2026-09-23 06:57:32</sys_created_on>
+        <sys_id>2764788a68f34ec0a1448a91725bedd5</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Get Latest Scan</sys_name>
+        <sys_package display_value="CSDMViz" source="x_147805_csdmviz">1c9af66f83340350c07713e0deaad3c3</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="CSDMViz">1c9af66f83340350c07713e0deaad3c3</sys_scope>
+        <sys_update_name>sys_ws_operation_2764788a68f34ec0a1448a91725bedd5</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2026-09-23 06:57:32</sys_updated_on>
+        <web_service_definition display_value="CSDM Scan API">2ce71238e7e6427690e644792fa8f86f</web_service_definition>
+        <web_service_version/>
+    </sys_ws_operation>
+</record_update>

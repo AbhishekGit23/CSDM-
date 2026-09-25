@@ -348,82 +348,270 @@ CSDMScoreCalculator.prototype = {
 
     /**
      * Dimension 4: Relationship Compliance (Weight: 15%)
-     * Checks recommended vs total relationship types.
+     *
+     * CSDM 5.0 class-pair-aware relationship compliance.
+     * Validates parent_class + relationship_type + child_class triples
+     * against a CSDM 5.0 rule matrix instead of naive type-name matching.
+     *
+     * Composite score from 4 sub-metrics:
+     *   Type Correctness  (40%) — correct rel type between expected class pairs
+     *   Class-Pair Match  (30%) — in-scope rels that connect expected class pairs
+     *   Coverage          (20%) — parent CIs that have the expected relationship
+     *   Integrity         (10%) — rels free of retired/orphaned CI issues
      */
     calculateRelationshipCompliance: function () {
-        var recTypes = [
-            'Runs on::Runs',
-            'Hosted on::Hosts',
-            'Depends on::Used by',
-            'Contains::Contained by',
-            'Provides::Provided by',
+
+        // ── CSDM 5.0 Relationship Rule Matrix ──────────────────────────
+        // Each rule defines: parentClass + relType (Forward::Reverse) + childClass
+        // childInstanceOf: true means use INSTANCEOF for subclass matching
+        var RULES = [
+            { parent: 'cmdb_ci_appl',              rel: 'Runs on::Runs',                child: 'cmdb_ci_server',           childInstanceOf: true,  label: 'Application runs on Server',              domain: 'Technical→Foundation' },
+            { parent: 'cmdb_ci_appl',              rel: 'Runs on::Runs',                child: 'cmdb_ci_vm_instance',      childInstanceOf: true,  label: 'Application runs on VM',                  domain: 'Technical→Foundation' },
+            { parent: 'cmdb_ci_appl',              rel: 'Uses::Used by',                child: 'cmdb_ci_database_instance',childInstanceOf: true,  label: 'Application uses Database',               domain: 'Technical→Foundation' },
+            { parent: 'cmdb_ci_database_instance', rel: 'Hosted on::Hosts',             child: 'cmdb_ci_server',           childInstanceOf: true,  label: 'Database hosted on Server',               domain: 'Foundation→Foundation' },
+            { parent: 'cmdb_ci_database_instance', rel: 'Hosted on::Hosts',             child: 'cmdb_ci_vm_instance',      childInstanceOf: true,  label: 'Database hosted on VM',                   domain: 'Foundation→Foundation' },
+            { parent: 'cmdb_ci_vm_instance',       rel: 'Virtualized by::Virtualizes',  child: 'cmdb_ci_server',           childInstanceOf: true,  label: 'VM virtualized by Server',                domain: 'Foundation→Foundation' },
+            { parent: 'cmdb_ci_service_auto',      rel: 'Depends on::Used by',          child: 'cmdb_ci_appl',             childInstanceOf: false, label: 'App Service depends on Application',      domain: 'Technical→Design' },
+            { parent: 'cmdb_ci_service_technical',rel: 'Contains::Contained by',        child: 'cmdb_ci_service_auto',     childInstanceOf: false, label: 'Technical Service contains App Service',  domain: 'Technical→Technical' },
+            { parent: 'cmdb_ci_service',           rel: 'Depends on::Used by',          child: 'cmdb_ci_service_auto',     childInstanceOf: false, label: 'Business Service depends on App Service', domain: 'Business→Technical' },
+            { parent: 'cmdb_ci_service',           rel: 'Provides::Provided by',        child: 'service_offering',         childInstanceOf: false, label: 'Business Service provides Offering',      domain: 'Business→Sell/Consume' },
+            { parent: 'cmdb_ci_business_app',      rel: 'Uses::Used by',                child: 'cmdb_ci_service_auto',     childInstanceOf: false, label: 'Business App uses App Service',           domain: 'Design→Technical' },
+            { parent: 'cmdb_ci_business_app',      rel: 'Depends on::Used by',          child: 'cmdb_ci_appl',             childInstanceOf: false, label: 'Business App depends on Application',     domain: 'Design→Design' },
+            { parent: 'cmdb_software_instance',    rel: 'Installed on::Has installed',   child: 'cmdb_ci_computer',         childInstanceOf: true,  label: 'Software installed on Computer',          domain: 'Design→Foundation' },
+            { parent: 'cmdb_software_instance',    rel: 'Installed on::Has installed',   child: 'cmdb_ci_server',           childInstanceOf: true,  label: 'Software installed on Server',            domain: 'Design→Foundation' },
         ]
 
-        var totalRels = 0
-        var recommendedRels = 0
-        var nonRecommendedRels = 0
-        var typeDistribution = []
-
-        try {
-            var ga = new GlideAggregate('cmdb_rel_ci')
-            ga.addAggregate('COUNT')
-            ga.groupBy('type')
-            ga.orderByAggregate('COUNT', 'DESC')
-            ga.query()
-
-            while (ga.next()) {
-                var typeName = ga.type.getDisplayValue() || 'Unknown'
-                var cnt = parseInt(ga.getAggregate('COUNT'), 10) || 0
-                var isRecommended = false
-
-                for (var r = 0; r < recTypes.length; r++) {
-                    if (
-                        typeName.indexOf(recTypes[r].split('::')[0]) >= 0
-                    ) {
-                        isRecommended = true
-                        break
-                    }
-                }
-
-                totalRels += cnt
-                if (isRecommended) {
-                    recommendedRels += cnt
-                } else {
-                    nonRecommendedRels += cnt
-                }
-
-                typeDistribution.push({
-                    type_name: typeName,
-                    count: cnt,
-                    recommended: isRecommended,
-                })
-            }
-        } catch (e) {
-            totalRels = 0
+        // Collect unique parent classes for in-scope denominator
+        var inScopeParents = {}
+        for (var p = 0; p < RULES.length; p++) {
+            inScopeParents[RULES[p].parent] = true
         }
 
-        var score =
-            totalRels > 0
-                ? Math.round((recommendedRels / totalRels) * 100)
-                : 0
+        // ── Helper: count rels with GlideAggregate ─────────────────────
+        function countRels(parentCls, relName, childCls, useInstanceOf) {
+            try {
+                var ga = new GlideAggregate('cmdb_rel_ci')
+                ga.addAggregate('COUNT')
+                ga.addQuery('parent.sys_class_name', parentCls)
+                ga.addQuery('type.name', relName)
+                if (useInstanceOf) {
+                    ga.addQuery('child.sys_class_name', 'INSTANCEOF', childCls)
+                } else {
+                    ga.addQuery('child.sys_class_name', childCls)
+                }
+                ga.query()
+                if (ga.next()) return parseInt(ga.getAggregate('COUNT'), 10) || 0
+            } catch (e) { /* skip */ }
+            return 0
+        }
+
+        function countRelsBetweenPairAnyType(parentCls, childCls, useInstanceOf) {
+            try {
+                var ga = new GlideAggregate('cmdb_rel_ci')
+                ga.addAggregate('COUNT')
+                ga.addQuery('parent.sys_class_name', parentCls)
+                if (useInstanceOf) {
+                    ga.addQuery('child.sys_class_name', 'INSTANCEOF', childCls)
+                } else {
+                    ga.addQuery('child.sys_class_name', childCls)
+                }
+                ga.query()
+                if (ga.next()) return parseInt(ga.getAggregate('COUNT'), 10) || 0
+            } catch (e) { /* skip */ }
+            return 0
+        }
+
+        function countCIs(tableName) {
+            try {
+                var ga = new GlideAggregate(tableName)
+                ga.addAggregate('COUNT')
+                ga.query()
+                if (ga.next()) return parseInt(ga.getAggregate('COUNT'), 10) || 0
+            } catch (e) { /* skip */ }
+            return 0
+        }
+
+        function countDistinctParentsWithRel(parentCls, relName, childCls, useInstanceOf) {
+            try {
+                var ga = new GlideAggregate('cmdb_rel_ci')
+                ga.addAggregate('COUNT', 'DISTINCT', 'parent')
+                ga.addQuery('parent.sys_class_name', parentCls)
+                ga.addQuery('type.name', relName)
+                if (useInstanceOf) {
+                    ga.addQuery('child.sys_class_name', 'INSTANCEOF', childCls)
+                } else {
+                    ga.addQuery('child.sys_class_name', childCls)
+                }
+                ga.query()
+                if (ga.next()) return parseInt(ga.getAggregate('COUNT', 'DISTINCT', 'parent'), 10) || 0
+            } catch (e) { /* skip */ }
+            return 0
+        }
+
+        // ── Stage 1–2: Evaluate each rule ──────────────────────────────
+        var ruleResults = []
+        var totalCompliant = 0
+        var totalBetweenPairs = 0
+        var coverageWeightedSum = 0
+        var coverageRulesEvaluated = 0
+
+        for (var i = 0; i < RULES.length; i++) {
+            var rule = RULES[i]
+            var compliant = countRels(rule.parent, rule.rel, rule.child, rule.childInstanceOf)
+            var betweenPair = countRelsBetweenPairAnyType(rule.parent, rule.child, rule.childInstanceOf)
+            var parentCICount = countCIs(rule.parent)
+            var parentsWithRel = countDistinctParentsWithRel(rule.parent, rule.rel, rule.child, rule.childInstanceOf)
+
+            totalCompliant += compliant
+            totalBetweenPairs += betweenPair
+
+            var ruleCoverage = parentCICount > 0 ? Math.round((parentsWithRel / parentCICount) * 100) : -1
+            if (parentCICount > 0) {
+                coverageWeightedSum += (parentsWithRel / parentCICount)
+                coverageRulesEvaluated++
+            }
+
+            ruleResults.push({
+                rule: rule.label,
+                domain: rule.domain,
+                parentClass: rule.parent,
+                childClass: rule.child,
+                relType: rule.rel,
+                compliant: compliant,
+                totalBetweenPair: betweenPair,
+                parentCIs: parentCICount,
+                parentCIsWithRel: parentsWithRel,
+                coveragePct: ruleCoverage
+            })
+        }
+
+        // ── Stage 3a: Total in-scope relationships (denominator) ───────
+        // In-scope = relationships where parent is a CSDM-relevant class
+        var totalInScope = 0
+        var parentKeys = Object.keys(inScopeParents)
+        for (var k = 0; k < parentKeys.length; k++) {
+            try {
+                var gaScope = new GlideAggregate('cmdb_rel_ci')
+                gaScope.addAggregate('COUNT')
+                gaScope.addQuery('parent.sys_class_name', parentKeys[k])
+                gaScope.query()
+                if (gaScope.next()) {
+                    totalInScope += parseInt(gaScope.getAggregate('COUNT'), 10) || 0
+                }
+            } catch (e) { /* skip */ }
+        }
+
+        // ── Stage 3b: Sub-metric 1 – Type Correctness (40%) ───────────
+        // Of rels between expected class pairs, how many use the CSDM type?
+        var typeCorrectnessScore = totalBetweenPairs > 0
+            ? Math.round((totalCompliant / totalBetweenPairs) * 100) : 0
+
+        // ── Stage 3c: Sub-metric 2 – Class-Pair Correctness (30%) ─────
+        // Of in-scope rels, how many connect expected class pairs?
+        var classPairScore = totalInScope > 0
+            ? Math.round((totalBetweenPairs / totalInScope) * 100) : 0
+
+        // ── Stage 3d: Sub-metric 3 – Coverage (20%) ───────────────────
+        // Average: what % of parent CIs have expected rels?
+        var coverageScore = coverageRulesEvaluated > 0
+            ? Math.round((coverageWeightedSum / coverageRulesEvaluated) * 100) : 0
+
+        // ── Stage 3e: Sub-metric 4 – Integrity (10%) ──────────────────
+        var retiredCount = 0
+        var orphanRefCount = 0
+        try {
+            // Rels involving retired CIs (install_status = 7 = Retired)
+            var gaRetP = new GlideAggregate('cmdb_rel_ci')
+            gaRetP.addAggregate('COUNT')
+            gaRetP.addQuery('parent.install_status', '7')
+            gaRetP.query()
+            if (gaRetP.next()) retiredCount += parseInt(gaRetP.getAggregate('COUNT'), 10) || 0
+
+            var gaRetC = new GlideAggregate('cmdb_rel_ci')
+            gaRetC.addAggregate('COUNT')
+            gaRetC.addQuery('child.install_status', '7')
+            gaRetC.query()
+            if (gaRetC.next()) retiredCount += parseInt(gaRetC.getAggregate('COUNT'), 10) || 0
+
+            // Rels with empty parent or child (orphaned references)
+            var gaOrpP = new GlideAggregate('cmdb_rel_ci')
+            gaOrpP.addAggregate('COUNT')
+            gaOrpP.addQuery('parent', '')
+            gaOrpP.query()
+            if (gaOrpP.next()) orphanRefCount += parseInt(gaOrpP.getAggregate('COUNT'), 10) || 0
+
+            var gaOrpC = new GlideAggregate('cmdb_rel_ci')
+            gaOrpC.addAggregate('COUNT')
+            gaOrpC.addQuery('child', '')
+            gaOrpC.query()
+            if (gaOrpC.next()) orphanRefCount += parseInt(gaOrpC.getAggregate('COUNT'), 10) || 0
+        } catch (e) { /* skip */ }
+
+        var totalRelCount = 0
+        try {
+            var gaAll = new GlideAggregate('cmdb_rel_ci')
+            gaAll.addAggregate('COUNT')
+            gaAll.query()
+            if (gaAll.next()) totalRelCount = parseInt(gaAll.getAggregate('COUNT'), 10) || 0
+        } catch (e) { /* skip */ }
+
+        var badRels = retiredCount + orphanRefCount
+        var integrityScore = totalRelCount > 0
+            ? Math.max(0, Math.round((1 - (badRels / totalRelCount)) * 100)) : 100
+
+        // ── Stage 4: Combined score ────────────────────────────────────
+        var score = Math.round(
+            typeCorrectnessScore * 0.40 +
+            classPairScore * 0.30 +
+            coverageScore * 0.20 +
+            integrityScore * 0.10
+        )
+
+        // Build type distribution for backward compat
+        var typeDistribution = []
+        try {
+            var gaTD = new GlideAggregate('cmdb_rel_ci')
+            gaTD.addAggregate('COUNT')
+            gaTD.groupBy('type')
+            gaTD.query()
+            while (gaTD.next()) {
+                var tdName = gaTD.type.getDisplayValue() || 'Unknown'
+                var tdCnt = parseInt(gaTD.getAggregate('COUNT'), 10) || 0
+                typeDistribution.push({ type_name: tdName, count: tdCnt, recommended: false })
+            }
+            typeDistribution.sort(function(a, b) { return b.count - a.count })
+            typeDistribution = typeDistribution.slice(0, 15)
+        } catch (e) { /* skip */ }
+
+        var description = totalCompliant + '/' + totalInScope + ' in-scope relationships are CSDM-compliant (' + score + '% composite)'
 
         return {
             score: score,
             weight: 0.15,
             label: 'Relationship Compliance',
-            description:
-                recommendedRels +
-                '/' +
-                totalRels +
-                ' relationships use recommended types (' +
-                score +
-                '%)',
+            description: description,
             details: {
-                total: totalRels,
-                recommended: recommendedRels,
-                nonRecommended: nonRecommendedRels,
+                total: totalInScope,
+                recommended: totalCompliant,
+                nonRecommended: totalInScope - totalCompliant,
                 typeDistribution: typeDistribution,
-            },
+                subMetrics: {
+                    typeCorrectness:  { score: typeCorrectnessScore, weight: 0.40, label: 'Type Correctness',  detail: totalCompliant + '/' + totalBetweenPairs + ' rels use CSDM-expected type between correct class pairs' },
+                    classPairMatch:   { score: classPairScore,       weight: 0.30, label: 'Class-Pair Match',  detail: totalBetweenPairs + '/' + totalInScope + ' in-scope rels connect CSDM-expected class pairs' },
+                    coverage:         { score: coverageScore,        weight: 0.20, label: 'Relationship Coverage', detail: coverageRulesEvaluated + ' rules evaluated, avg ' + coverageScore + '% of parent CIs have expected rels' },
+                    integrity:        { score: integrityScore,       weight: 0.10, label: 'Integrity',         detail: retiredCount + ' retired CI refs, ' + orphanRefCount + ' orphaned refs out of ' + totalRelCount + ' total' }
+                },
+                ruleResults: ruleResults,
+                summary: {
+                    totalInScope: totalInScope,
+                    totalCompliant: totalCompliant,
+                    totalBetweenPairs: totalBetweenPairs,
+                    totalRules: RULES.length,
+                    rulesWithData: coverageRulesEvaluated,
+                    retiredRefs: retiredCount,
+                    orphanedRefs: orphanRefCount
+                }
+            }
         }
     },
 

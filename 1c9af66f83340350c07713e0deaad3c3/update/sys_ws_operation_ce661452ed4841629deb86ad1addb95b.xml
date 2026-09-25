@@ -195,7 +195,10 @@
                     non_recommended: relDetails.nonRecommended || 0
                 },
                 typeDistribution: relDetails.typeDistribution || [],
-                recommendedTypes: RECOMMENDED_REL_KEYWORDS
+                recommendedTypes: RECOMMENDED_REL_KEYWORDS,
+                subMetrics: relDetails.subMetrics || null,
+                ruleResults: relDetails.ruleResults || [],
+                complianceSummary: relDetails.summary || null
             },
             dataCompleteness: dataChecks,
             serviceModel: svcChain,

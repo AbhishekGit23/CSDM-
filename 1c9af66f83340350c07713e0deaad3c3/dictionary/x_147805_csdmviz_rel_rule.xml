@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?><database>
+    <element attributes="enforce_dot_walk_cross_scope_access=true" db_object_id="de0f0cbaea4c4a6eb4f1c8428b778ad2" label="CSDM Relationship Rule" name="x_147805_csdmviz_rel_rule" type="collection">
+        <element label="Service Model Relevant" name="service_model_relevant" type="boolean"/>
+        <element default="100" label="Rule Order" max_length="40" name="rule_order" type="integer"/>
+        <element display="true" label="Description" max_length="500" name="description" type="string"/>
+        <element default="true" label="Active" name="active" type="boolean"/>
+        <element label="Child Instance Of" name="child_instance_of" type="boolean"/>
+        <element label="Parent Class" mandatory="true" max_length="80" name="parent_class" type="string"/>
+        <element label="Relationship Type" mandatory="true" max_length="100" name="relationship_type" type="string"/>
+        <element default="1" label="Weight" max_length="40" name="weight" type="integer"/>
+        <element label="Child Class" mandatory="true" max_length="80" name="child_class" type="string"/>
+        <element label="Category" max_length="100" name="category" type="string"/>
+    </element>
+</database>

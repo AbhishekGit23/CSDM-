@@ -11,12 +11,399 @@
         <sandbox_callable>false</sandbox_callable>
         <script><![CDATA[var CSDMScoreCalculator = Class.create()
 CSDMScoreCalculator.prototype = {
-    initialize: function () {},
+    initialize: function () {
+        this._cachedRules = null;
+    },
+
+    // ══════════════════════════════════════════════════════════════════
+    //  Private Helpers
+    // ══════════════════════════════════════════════════════════════════
 
     /**
-     * Dimension 1: Domain Coverage (Weight: 15%)
-     * Checks 5 CSDM domain layers for populated tables.
+     * Clamps a numeric value between min and max (inclusive).
      */
+    _clamp: function (value, min, max) {
+        if (value < min) return min;
+        if (value > max) return max;
+        return value;
+    },
+
+    /**
+     * Validates that a table name corresponds to an accessible table.
+     */
+    _validateTable: function (tableName) {
+        try {
+            var gr = new GlideRecord(tableName);
+            return gr.isValid();
+        } catch (e) {
+            gs.warn('CSDMScoreCalculator: Table validation failed for ' + tableName + ' - ' + e.message);
+            return false;
+        }
+    },
+
+    /**
+     * Returns COUNT of records in the given table using GlideAggregate.
+     * Validates the table first; returns 0 on error.
+     */
+    _getTableCount: function (tableName) {
+        if (!this._validateTable(tableName)) {
+            gs.warn('CSDMScoreCalculator: Invalid table for count - ' + tableName);
+            return 0;
+        }
+        try {
+            var ga = new GlideAggregate(tableName);
+            ga.addAggregate('COUNT');
+            ga.query();
+            if (ga.next()) {
+                return parseInt(ga.getAggregate('COUNT'), 10) || 0;
+            }
+        } catch (e) {
+            gs.warn('CSDMScoreCalculator: Failed to count records in ' + tableName + ' - ' + e.message);
+        }
+        return 0;
+    },
+
+    /**
+     * Counts relationships matching parent class + rel type + child class.
+     */
+    _countRels: function (parentCls, relName, childCls, useInstanceOf) {
+        try {
+            var ga = new GlideAggregate('cmdb_rel_ci');
+            ga.addAggregate('COUNT');
+            ga.addQuery('parent.sys_class_name', parentCls);
+            ga.addQuery('type.name', relName);
+            if (useInstanceOf) {
+                ga.addQuery('child.sys_class_name', 'INSTANCEOF', childCls);
+            } else {
+                ga.addQuery('child.sys_class_name', childCls);
+            }
+            ga.query();
+            if (ga.next()) return parseInt(ga.getAggregate('COUNT'), 10) || 0;
+        } catch (e) {
+            gs.warn('CSDMScoreCalculator: _countRels failed for ' + parentCls + ' -> ' + childCls + ' - ' + e.message);
+        }
+        return 0;
+    },
+
+    /**
+     * Counts all relationships between a parent/child class pair regardless of type.
+     */
+    _countRelsBetweenPairAnyType: function (parentCls, childCls, useInstanceOf) {
+        try {
+            var ga = new GlideAggregate('cmdb_rel_ci');
+            ga.addAggregate('COUNT');
+            ga.addQuery('parent.sys_class_name', parentCls);
+            if (useInstanceOf) {
+                ga.addQuery('child.sys_class_name', 'INSTANCEOF', childCls);
+            } else {
+                ga.addQuery('child.sys_class_name', childCls);
+            }
+            ga.query();
+            if (ga.next()) return parseInt(ga.getAggregate('COUNT'), 10) || 0;
+        } catch (e) {
+            gs.warn('CSDMScoreCalculator: _countRelsBetweenPairAnyType failed for ' + parentCls + ' -> ' + childCls + ' - ' + e.message);
+        }
+        return 0;
+    },
+
+    /**
+     * Counts distinct parent CIs that have a specific relationship to a child class.
+     */
+    _countDistinctParentsWithRel: function (parentCls, relName, childCls, useInstanceOf) {
+        try {
+            var ga = new GlideAggregate('cmdb_rel_ci');
+            ga.addAggregate('COUNT', 'DISTINCT', 'parent');
+            ga.addQuery('parent.sys_class_name', parentCls);
+            ga.addQuery('type.name', relName);
+            if (useInstanceOf) {
+                ga.addQuery('child.sys_class_name', 'INSTANCEOF', childCls);
+            } else {
+                ga.addQuery('child.sys_class_name', childCls);
+            }
+            ga.query();
+            if (ga.next()) return parseInt(ga.getAggregate('COUNT', 'DISTINCT', 'parent'), 10) || 0;
+        } catch (e) {
+            gs.warn('CSDMScoreCalculator: _countDistinctParentsWithRel failed for ' + parentCls + ' -> ' + childCls + ' - ' + e.message);
+        }
+        return 0;
+    },
+
+    /**
+     * Loads active relationship rules from x_147805_csdmviz_rel_rule.
+     * Caches results in this._cachedRules for the duration of the scan.
+     */
+    _getActiveRelationshipRules: function () {
+        if (this._cachedRules) {
+            return this._cachedRules;
+        }
+
+        var rules = [];
+        try {
+            var gr = new GlideRecord('x_147805_csdmviz_rel_rule');
+            gr.addQuery('active', true);
+            gr.orderBy('rule_order');
+            gr.query();
+            while (gr.next()) {
+                rules.push({
+                    parent: gr.getValue('parent_class') || '',
+                    rel: gr.getValue('relationship_type') || '',
+                    child: gr.getValue('child_class') || '',
+                    childInstanceOf: gr.getValue('child_instance_of') == '1' || gr.getValue('child_instance_of') == 'true',
+                    label: gr.getValue('description') || '',
+                    domain: gr.getValue('category') || '',
+                    serviceModelRelevant: gr.getValue('service_model_relevant') == '1' || gr.getValue('service_model_relevant') == 'true',
+                    weight: parseInt(gr.getValue('weight'), 10) || 1,
+                    order: parseInt(gr.getValue('rule_order'), 10) || 100,
+                });
+            }
+        } catch (e) {
+            gs.warn('CSDMScoreCalculator: Failed to load relationship rules - ' + e.message);
+        }
+
+        if (rules.length === 0) {
+            gs.warn('CSDMScoreCalculator: No active relationship rules found in x_147805_csdmviz_rel_rule');
+        }
+
+        this._cachedRules = rules;
+        return rules;
+    },
+
+    /**
+     * Returns the configurable service model level definitions.
+     */
+    _getServiceModelLevels: function () {
+        return [
+            { name: 'Business Service', table: 'cmdb_ci_service', order: 1 },
+            { name: 'Service Offering', table: 'service_offering', order: 2 },
+            { name: 'Technical Service', table: 'cmdb_ci_service_technical', order: 3 },
+            { name: 'Application Service', table: 'cmdb_ci_service_auto', order: 4 },
+            { name: 'Application', table: 'cmdb_ci_appl', order: 5 },
+            { name: 'Infrastructure', table: 'cmdb_ci_server', order: 6 },
+        ];
+    },
+
+    // ══════════════════════════════════════════════════════════════════
+    //  Service Model Sub-Components
+    // ══════════════════════════════════════════════════════════════════
+
+    /**
+     * Population sub-component (30% of Service Model Depth).
+     * Checks which service model hierarchy levels have records.
+     */
+    _calculateServiceModelPopulation: function () {
+        var levels = this._getServiceModelLevels();
+        var totalLevels = levels.length;
+        var populatedLevels = 0;
+        var levelDetails = [];
+
+        for (var i = 0; i < levels.length; i++) {
+            var count = this._getTableCount(levels[i].table);
+            var populated = count > 0;
+            if (populated) {
+                populatedLevels++;
+            }
+            levelDetails.push({
+                name: levels[i].name,
+                table: levels[i].table,
+                count: count,
+                populated: populated,
+            });
+        }
+
+        var score = totalLevels > 0 ? Math.round((populatedLevels / totalLevels) * 100) : 0;
+
+        return {
+            score: score,
+            populatedLevels: populatedLevels,
+            totalLevels: totalLevels,
+            levels: levelDetails,
+        };
+    },
+
+    /**
+     * Relationships sub-component (50% of Service Model Depth).
+     * Evaluates coverage of service-model-relevant relationship rules.
+     */
+    _calculateServiceModelRelationships: function () {
+        var rules = this._getActiveRelationshipRules();
+        var smRules = [];
+        for (var i = 0; i < rules.length; i++) {
+            if (rules[i].serviceModelRelevant) {
+                smRules.push(rules[i]);
+            }
+        }
+
+        if (smRules.length === 0) {
+            return { score: 0, ruleCount: 0, rulesEvaluated: 0, ruleDetails: [] };
+        }
+
+        var coverageSum = 0;
+        var rulesEvaluated = 0;
+        var ruleDetails = [];
+
+        for (var r = 0; r < smRules.length; r++) {
+            var rule = smRules[r];
+            var parentCount = this._getTableCount(rule.parent);
+            if (parentCount === 0) {
+                ruleDetails.push({
+                    label: rule.label,
+                    parentClass: rule.parent,
+                    childClass: rule.child,
+                    parentCount: 0,
+                    parentsWithRel: 0,
+                    coverage: -1,
+                });
+                continue;
+            }
+
+            var parentsWithRel = this._countDistinctParentsWithRel(
+                rule.parent, rule.rel, rule.child, rule.childInstanceOf
+            );
+            var coverage = parentsWithRel / parentCount;
+            coverageSum += coverage;
+            rulesEvaluated++;
+
+            ruleDetails.push({
+                label: rule.label,
+                parentClass: rule.parent,
+                childClass: rule.child,
+                parentCount: parentCount,
+                parentsWithRel: parentsWithRel,
+                coverage: Math.round(coverage * 100),
+            });
+        }
+
+        var score = rulesEvaluated > 0 ? Math.round((coverageSum / rulesEvaluated) * 100) : 0;
+
+        return {
+            score: score,
+            ruleCount: smRules.length,
+            rulesEvaluated: rulesEvaluated,
+            ruleDetails: ruleDetails,
+        };
+    },
+
+    /**
+     * Chain Depth sub-component (20% of Service Model Depth).
+     * Checks how deep the service model chain is connected via
+     * bounded level-by-level traversal.
+     *
+     * Main chain: Business Service → App Service → Application → Infrastructure
+     */
+    _calculateServiceModelChainDepth: function () {
+        // Define the main service model chain in order (top to bottom)
+        var chainLevels = [
+            { name: 'Business Service', table: 'cmdb_ci_service' },
+            { name: 'Application Service', table: 'cmdb_ci_service_auto' },
+            { name: 'Application', table: 'cmdb_ci_appl' },
+            { name: 'Infrastructure', table: 'cmdb_ci_server' },
+        ];
+
+        // Get service-model-relevant rules to find chain links
+        var rules = this._getActiveRelationshipRules();
+        var smRules = [];
+        for (var i = 0; i < rules.length; i++) {
+            if (rules[i].serviceModelRelevant) {
+                smRules.push(rules[i]);
+            }
+        }
+
+        // Build chain links between adjacent levels
+        var chainLinks = [];
+        for (var lvl = 0; lvl < chainLevels.length - 1; lvl++) {
+            var fromTable = chainLevels[lvl].table;
+            var toTable = chainLevels[lvl + 1].table;
+            var linkRule = null;
+            for (var r = 0; r < smRules.length; r++) {
+                if (smRules[r].parent === fromTable && smRules[r].child === toTable) {
+                    linkRule = smRules[r];
+                    break;
+                }
+            }
+            chainLinks.push({
+                from: chainLevels[lvl],
+                to: chainLevels[lvl + 1],
+                rule: linkRule,
+            });
+        }
+
+        // Level-by-level traversal using GlideAggregate (EXISTS-style)
+        var totalPossibleLinks = chainLinks.length;
+        var maxDepthFound = 0;
+        var linkDetails = [];
+
+        for (var c = 0; c < chainLinks.length; c++) {
+            var link = chainLinks[c];
+            if (!link.rule) {
+                linkDetails.push({
+                    from: link.from.name,
+                    to: link.to.name,
+                    connected: false,
+                    reason: 'No matching service-model rule found',
+                });
+                break; // chain is broken — no deeper traversal
+            }
+
+            try {
+                var ga = new GlideAggregate('cmdb_rel_ci');
+                ga.addAggregate('COUNT');
+                ga.addQuery('parent.sys_class_name', link.rule.parent);
+                ga.addQuery('type.name', link.rule.rel);
+                if (link.rule.childInstanceOf) {
+                    ga.addQuery('child.sys_class_name', 'INSTANCEOF', link.rule.child);
+                } else {
+                    ga.addQuery('child.sys_class_name', link.rule.child);
+                }
+                ga.query();
+                var hasRelationships = false;
+                if (ga.next()) {
+                    var cnt = parseInt(ga.getAggregate('COUNT'), 10) || 0;
+                    hasRelationships = cnt > 0;
+                }
+
+                if (hasRelationships) {
+                    maxDepthFound++;
+                    linkDetails.push({
+                        from: link.from.name,
+                        to: link.to.name,
+                        connected: true,
+                        rule: link.rule.label,
+                    });
+                } else {
+                    linkDetails.push({
+                        from: link.from.name,
+                        to: link.to.name,
+                        connected: false,
+                        reason: 'No relationships found',
+                    });
+                    break; // chain is broken at this point
+                }
+            } catch (e) {
+                gs.warn('CSDMScoreCalculator: Chain depth check failed at ' + link.from.name + ' -> ' + link.to.name + ' - ' + e.message);
+                linkDetails.push({
+                    from: link.from.name,
+                    to: link.to.name,
+                    connected: false,
+                    reason: 'Error: ' + e.message,
+                });
+                break;
+            }
+        }
+
+        var score = totalPossibleLinks > 0 ? Math.round((maxDepthFound / totalPossibleLinks) * 100) : 0;
+
+        return {
+            score: score,
+            maxDepthFound: maxDepthFound,
+            totalPossibleLinks: totalPossibleLinks,
+            chainLinks: linkDetails,
+        };
+    },
+
+    // ══════════════════════════════════════════════════════════════════
+    //  Dimension 1: Domain Coverage (Weight: 15%) — UNCHANGED
+    // ══════════════════════════════════════════════════════════════════
+
     calculateDomainCoverage: function () {
         var domains = {
             foundation: {
@@ -35,12 +422,7 @@ CSDMScoreCalculator.prototype = {
             },
             design_application: {
                 label: 'Design - Application Portfolio',
-                tables: [
-                    'cmdb_ci_business_app',
-                    'cmdb_ci_appl',
-                    'cmdb_software_instance',
-                    'cmdb_ci_spkg',
-                ],
+                tables: ['cmdb_ci_business_app', 'cmdb_ci_appl', 'cmdb_software_instance', 'cmdb_ci_spkg'],
             },
             manage_technical: {
                 label: 'Manage Technical Services',
@@ -57,163 +439,123 @@ CSDMScoreCalculator.prototype = {
             },
             sell_consume: {
                 label: 'Sell/Consume',
-                tables: [
-                    'sc_cat_item',
-                    'sc_request',
-                    'incident',
-                    'change_request',
-                ],
+                tables: ['sc_cat_item', 'sc_request', 'incident', 'change_request'],
             },
-        }
+        };
 
-        var totalClasses = 0
-        var populatedClasses = 0
-        var domainDetails = {}
+        var totalClasses = 0;
+        var populatedClasses = 0;
+        var domainDetails = {};
 
         for (var key in domains) {
-            if (!domains.hasOwnProperty(key)) continue
-            var d = domains[key]
+            if (!domains.hasOwnProperty(key)) continue;
+            var d = domains[key];
             var domainResult = {
                 label: d.label,
                 totalTables: d.tables.length,
                 populatedTables: 0,
                 tables: [],
-            }
+            };
 
             for (var i = 0; i < d.tables.length; i++) {
-                var tableName = d.tables[i]
-                var count = 0
+                var tableName = d.tables[i];
+                var count = 0;
 
                 try {
-                    var ga = new GlideAggregate(tableName)
-                    ga.addAggregate('COUNT')
-                    ga.query()
+                    var ga = new GlideAggregate(tableName);
+                    ga.addAggregate('COUNT');
+                    ga.query();
                     if (ga.next()) {
-                        count = parseInt(ga.getAggregate('COUNT'), 10) || 0
+                        count = parseInt(ga.getAggregate('COUNT'), 10) || 0;
                     }
                 } catch (e) {
-                    count = 0
+                    count = 0;
                 }
 
-                totalClasses++
+                totalClasses++;
                 if (count > 0) {
-                    populatedClasses++
-                    domainResult.populatedTables++
+                    populatedClasses++;
+                    domainResult.populatedTables++;
                 }
 
                 domainResult.tables.push({
                     table: tableName,
                     count: count,
                     populated: count > 0,
-                })
+                });
             }
 
-            domainDetails[key] = domainResult
+            domainDetails[key] = domainResult;
         }
 
-        var score =
-            totalClasses > 0
-                ? Math.round((populatedClasses / totalClasses) * 100)
-                : 0
+        var score = totalClasses > 0 ? Math.round((populatedClasses / totalClasses) * 100) : 0;
 
         return {
             score: score,
             weight: 0.15,
             label: 'Domain Coverage',
-            description:
-                populatedClasses +
-                '/' +
-                totalClasses +
-                ' CSDM classes populated (' +
-                score +
-                '%)',
+            description: populatedClasses + '/' + totalClasses + ' CSDM classes populated (' + score + '%)',
             details: {
                 domains: domainDetails,
                 totalClasses: totalClasses,
                 populatedClasses: populatedClasses,
             },
-        }
+        };
     },
 
-    /**
-     * Dimension 2: Data Completeness (Weight: 20%)
-     * Checks critical fields on 3 key tables.
-     */
+    // ══════════════════════════════════════════════════════════════════
+    //  Dimension 2: Data Completeness (Weight: 20%) — UNCHANGED
+    // ══════════════════════════════════════════════════════════════════
+
     calculateDataCompleteness: function () {
         var tableChecks = [
             {
                 table: 'cmdb_ci_server',
-                fields: [
-                    'name',
-                    'ip_address',
-                    'os',
-                    'serial_number',
-                    'ram',
-                    'cpu_count',
-                    'manufacturer',
-                ],
+                fields: ['name', 'ip_address', 'os', 'serial_number', 'ram', 'cpu_count', 'manufacturer'],
             },
             {
                 table: 'cmdb_ci_appl',
-                fields: [
-                    'name',
-                    'version',
-                    'install_status',
-                    'owned_by',
-                    'managed_by',
-                    'used_for',
-                ],
+                fields: ['name', 'version', 'install_status', 'owned_by', 'managed_by', 'used_for'],
             },
             {
                 table: 'cmdb_ci_service',
-                fields: [
-                    'name',
-                    'owned_by',
-                    'managed_by',
-                    'service_classification',
-                    'used_for',
-                    'busines_criticality',
-                ],
+                fields: ['name', 'owned_by', 'managed_by', 'service_classification', 'used_for', 'busines_criticality'],
             },
-        ]
+        ];
 
-        var tableResults = []
-        var totalCompleteness = 0
+        var tableResults = [];
+        var totalCompleteness = 0;
 
         for (var t = 0; t < tableChecks.length; t++) {
-            var check = tableChecks[t]
-            var totalRecords = 0
-            var completeRecords = 0
+            var check = tableChecks[t];
+            var totalRecords = 0;
+            var completeRecords = 0;
 
             try {
                 // Count total records
-                var gaTotal = new GlideAggregate(check.table)
-                gaTotal.addAggregate('COUNT')
-                gaTotal.query()
+                var gaTotal = new GlideAggregate(check.table);
+                gaTotal.addAggregate('COUNT');
+                gaTotal.query();
                 if (gaTotal.next()) {
-                    totalRecords =
-                        parseInt(gaTotal.getAggregate('COUNT'), 10) || 0
+                    totalRecords = parseInt(gaTotal.getAggregate('COUNT'), 10) || 0;
                 }
 
                 // Count records with ALL critical fields filled
                 if (totalRecords > 0) {
-                    var gr = new GlideRecord(check.table)
+                    var gr = new GlideRecord(check.table);
                     for (var f = 0; f < check.fields.length; f++) {
-                        gr.addNotNullQuery(check.fields[f])
+                        gr.addNotNullQuery(check.fields[f]);
                     }
-                    gr.query()
-                    completeRecords = gr.getRowCount()
+                    gr.query();
+                    completeRecords = gr.getRowCount();
                 }
             } catch (e) {
-                totalRecords = 0
-                completeRecords = 0
+                totalRecords = 0;
+                completeRecords = 0;
             }
 
-            var completeness =
-                totalRecords > 0
-                    ? Math.round((completeRecords / totalRecords) * 100)
-                    : 0
-            totalCompleteness += completeness
+            var completeness = totalRecords > 0 ? Math.round((completeRecords / totalRecords) * 100) : 0;
+            totalCompleteness += completeness;
 
             tableResults.push({
                 table: check.table,
@@ -221,137 +563,78 @@ CSDMScoreCalculator.prototype = {
                 completeRecords: completeRecords,
                 completeness: completeness,
                 fields: check.fields,
-            })
+            });
         }
 
-        var score =
-            tableChecks.length > 0
-                ? Math.round(totalCompleteness / tableChecks.length)
-                : 0
+        var score = tableChecks.length > 0 ? Math.round(totalCompleteness / tableChecks.length) : 0;
 
         return {
             score: score,
             weight: 0.2,
             label: 'Data Completeness',
-            description:
-                'Avg completeness across 3 key tables: ' + score + '%',
+            description: 'Avg completeness across 3 key tables: ' + score + '%',
             details: {
                 tables: tableResults,
             },
-        }
+        };
     },
 
+    // ══════════════════════════════════════════════════════════════════
+    //  Dimension 3: Service Model Depth (Weight: 20%) — REFACTORED
+    // ══════════════════════════════════════════════════════════════════
+
     /**
-     * Dimension 3: Service Model Depth (Weight: 20%)
-     * Checks the full CSDM service model hierarchy chain.
+     * Orchestrator: Combines 3 sub-components into a weighted composite.
+     *   Population        30%
+     *   Relationships     50%
+     *   Chain Depth       20%
      */
     calculateServiceModelDepth: function () {
-        var levels = [
-            {
-                name: 'Business Service',
-                table: 'cmdb_ci_service',
-                populated: false,
-                count: 0,
-            },
-            {
-                name: 'Service Offering',
-                table: 'service_offering',
-                populated: false,
-                count: 0,
-            },
-            {
-                name: 'Technical Service',
-                table: 'cmdb_ci_service_technical',
-                populated: false,
-                count: 0,
-            },
-            {
-                name: 'Application Service',
-                table: 'cmdb_ci_service_auto',
-                populated: false,
-                count: 0,
-            },
-            {
-                name: 'Application',
-                table: 'cmdb_ci_appl',
-                populated: false,
-                count: 0,
-            },
-            {
-                name: 'Infrastructure',
-                table: 'cmdb_ci_server',
-                populated: false,
-                count: 0,
-            },
-        ]
+        var population = this._calculateServiceModelPopulation();
+        var relationships = this._calculateServiceModelRelationships();
+        var depth = this._calculateServiceModelChainDepth();
 
-        var populatedLevels = 0
+        // Weighted composite
+        var score = Math.round(
+            population.score * 0.30 +
+            relationships.score * 0.50 +
+            depth.score * 0.20
+        );
+        score = this._clamp(score, 0, 100);
 
-        for (var i = 0; i < levels.length; i++) {
-            try {
-                var ga = new GlideAggregate(levels[i].table)
-                ga.addAggregate('COUNT')
-                ga.query()
-                if (ga.next()) {
-                    var cnt = parseInt(ga.getAggregate('COUNT'), 10) || 0
-                    levels[i].count = cnt
-                    if (cnt > 0) {
-                        levels[i].populated = true
-                        populatedLevels++
-                    }
-                }
-            } catch (e) {
-                levels[i].count = 0
-            }
-        }
-
-        // Check key relationships between adjacent layers
-        var relationshipBonus = 0
-        try {
-            var relGa = new GlideAggregate('cmdb_rel_ci')
-            relGa.addAggregate('COUNT')
-            relGa.query()
-            if (relGa.next()) {
-                var relCount =
-                    parseInt(relGa.getAggregate('COUNT'), 10) || 0
-                if (relCount > 0) {
-                    relationshipBonus = 10
-                }
-            }
-        } catch (e) {
-            relationshipBonus = 0
-        }
-
-        var baseScore = Math.round((populatedLevels / 6) * 100)
-        var score = Math.min(100, baseScore + relationshipBonus)
-        var chainComplete = populatedLevels === 6
+        var populatedLevels = population.populatedLevels;
+        var totalLevels = population.totalLevels;
+        var chainComplete = populatedLevels === totalLevels &&
+            depth.maxDepthFound === depth.totalPossibleLinks;
 
         return {
             score: score,
-            weight: 0.2,
+            weight: 0.20,
             label: 'Service Model Depth',
             description:
-                populatedLevels +
-                '/6 hierarchy levels populated' +
+                populatedLevels + '/' + totalLevels + ' hierarchy levels populated' +
                 (chainComplete ? ' (full chain)' : '') +
-                (relationshipBonus > 0
-                    ? ', +' + relationshipBonus + '% relationship bonus'
-                    : ''),
+                ', depth ' + depth.maxDepthFound + '/' + depth.totalPossibleLinks + ' links connected',
             details: {
-                levels: levels,
+                population: population,
+                relationships: relationships,
+                depth: depth,
+                // Backward compatibility fields
+                levels: population.levels,
                 chainComplete: chainComplete,
                 populatedLevels: populatedLevels,
-                relationshipBonus: relationshipBonus,
+                relationshipBonus: 0,
             },
-        }
+        };
     },
 
+    // ══════════════════════════════════════════════════════════════════
+    //  Dimension 4: Relationship Compliance (Weight: 15%) — REFACTORED
+    // ══════════════════════════════════════════════════════════════════
+
     /**
-     * Dimension 4: Relationship Compliance (Weight: 15%)
-     *
      * CSDM 5.0 class-pair-aware relationship compliance.
-     * Validates parent_class + relationship_type + child_class triples
-     * against a CSDM 5.0 rule matrix instead of naive type-name matching.
+     * Now reads rules from the configurable x_147805_csdmviz_rel_rule table.
      *
      * Composite score from 4 sub-metrics:
      *   Type Correctness  (40%) — correct rel type between expected class pairs
@@ -360,115 +643,36 @@ CSDMScoreCalculator.prototype = {
      *   Integrity         (10%) — rels free of retired/orphaned CI issues
      */
     calculateRelationshipCompliance: function () {
-
-        // ── CSDM 5.0 Relationship Rule Matrix ──────────────────────────
-        // Each rule defines: parentClass + relType (Forward::Reverse) + childClass
-        // childInstanceOf: true means use INSTANCEOF for subclass matching
-        var RULES = [
-            { parent: 'cmdb_ci_appl',              rel: 'Runs on::Runs',                child: 'cmdb_ci_server',           childInstanceOf: true,  label: 'Application runs on Server',              domain: 'Technical→Foundation' },
-            { parent: 'cmdb_ci_appl',              rel: 'Runs on::Runs',                child: 'cmdb_ci_vm_instance',      childInstanceOf: true,  label: 'Application runs on VM',                  domain: 'Technical→Foundation' },
-            { parent: 'cmdb_ci_appl',              rel: 'Uses::Used by',                child: 'cmdb_ci_database_instance',childInstanceOf: true,  label: 'Application uses Database',               domain: 'Technical→Foundation' },
-            { parent: 'cmdb_ci_database_instance', rel: 'Hosted on::Hosts',             child: 'cmdb_ci_server',           childInstanceOf: true,  label: 'Database hosted on Server',               domain: 'Foundation→Foundation' },
-            { parent: 'cmdb_ci_database_instance', rel: 'Hosted on::Hosts',             child: 'cmdb_ci_vm_instance',      childInstanceOf: true,  label: 'Database hosted on VM',                   domain: 'Foundation→Foundation' },
-            { parent: 'cmdb_ci_vm_instance',       rel: 'Virtualized by::Virtualizes',  child: 'cmdb_ci_server',           childInstanceOf: true,  label: 'VM virtualized by Server',                domain: 'Foundation→Foundation' },
-            { parent: 'cmdb_ci_service_auto',      rel: 'Depends on::Used by',          child: 'cmdb_ci_appl',             childInstanceOf: false, label: 'App Service depends on Application',      domain: 'Technical→Design' },
-            { parent: 'cmdb_ci_service_technical',rel: 'Contains::Contained by',        child: 'cmdb_ci_service_auto',     childInstanceOf: false, label: 'Technical Service contains App Service',  domain: 'Technical→Technical' },
-            { parent: 'cmdb_ci_service',           rel: 'Depends on::Used by',          child: 'cmdb_ci_service_auto',     childInstanceOf: false, label: 'Business Service depends on App Service', domain: 'Business→Technical' },
-            { parent: 'cmdb_ci_service',           rel: 'Provides::Provided by',        child: 'service_offering',         childInstanceOf: false, label: 'Business Service provides Offering',      domain: 'Business→Sell/Consume' },
-            { parent: 'cmdb_ci_business_app',      rel: 'Uses::Used by',                child: 'cmdb_ci_service_auto',     childInstanceOf: false, label: 'Business App uses App Service',           domain: 'Design→Technical' },
-            { parent: 'cmdb_ci_business_app',      rel: 'Depends on::Used by',          child: 'cmdb_ci_appl',             childInstanceOf: false, label: 'Business App depends on Application',     domain: 'Design→Design' },
-            { parent: 'cmdb_software_instance',    rel: 'Installed on::Has installed',   child: 'cmdb_ci_computer',         childInstanceOf: true,  label: 'Software installed on Computer',          domain: 'Design→Foundation' },
-            { parent: 'cmdb_software_instance',    rel: 'Installed on::Has installed',   child: 'cmdb_ci_server',           childInstanceOf: true,  label: 'Software installed on Server',            domain: 'Design→Foundation' },
-        ]
+        // ── Load rules from configuration table ───────────────────────
+        var rules = this._getActiveRelationshipRules();
 
         // Collect unique parent classes for in-scope denominator
-        var inScopeParents = {}
-        for (var p = 0; p < RULES.length; p++) {
-            inScopeParents[RULES[p].parent] = true
+        var inScopeParents = {};
+        for (var p = 0; p < rules.length; p++) {
+            inScopeParents[rules[p].parent] = true;
         }
 
-        // ── Helper: count rels with GlideAggregate ─────────────────────
-        function countRels(parentCls, relName, childCls, useInstanceOf) {
-            try {
-                var ga = new GlideAggregate('cmdb_rel_ci')
-                ga.addAggregate('COUNT')
-                ga.addQuery('parent.sys_class_name', parentCls)
-                ga.addQuery('type.name', relName)
-                if (useInstanceOf) {
-                    ga.addQuery('child.sys_class_name', 'INSTANCEOF', childCls)
-                } else {
-                    ga.addQuery('child.sys_class_name', childCls)
-                }
-                ga.query()
-                if (ga.next()) return parseInt(ga.getAggregate('COUNT'), 10) || 0
-            } catch (e) { /* skip */ }
-            return 0
-        }
+        // ── Stage 1–2: Evaluate each rule ─────────────────────────────
+        var ruleResults = [];
+        var totalCompliant = 0;
+        var totalBetweenPairs = 0;
+        var coverageWeightedSum = 0;
+        var coverageRulesEvaluated = 0;
 
-        function countRelsBetweenPairAnyType(parentCls, childCls, useInstanceOf) {
-            try {
-                var ga = new GlideAggregate('cmdb_rel_ci')
-                ga.addAggregate('COUNT')
-                ga.addQuery('parent.sys_class_name', parentCls)
-                if (useInstanceOf) {
-                    ga.addQuery('child.sys_class_name', 'INSTANCEOF', childCls)
-                } else {
-                    ga.addQuery('child.sys_class_name', childCls)
-                }
-                ga.query()
-                if (ga.next()) return parseInt(ga.getAggregate('COUNT'), 10) || 0
-            } catch (e) { /* skip */ }
-            return 0
-        }
+        for (var i = 0; i < rules.length; i++) {
+            var rule = rules[i];
+            var compliant = this._countRels(rule.parent, rule.rel, rule.child, rule.childInstanceOf);
+            var betweenPair = this._countRelsBetweenPairAnyType(rule.parent, rule.child, rule.childInstanceOf);
+            var parentCICount = this._getTableCount(rule.parent);
+            var parentsWithRel = this._countDistinctParentsWithRel(rule.parent, rule.rel, rule.child, rule.childInstanceOf);
 
-        function countCIs(tableName) {
-            try {
-                var ga = new GlideAggregate(tableName)
-                ga.addAggregate('COUNT')
-                ga.query()
-                if (ga.next()) return parseInt(ga.getAggregate('COUNT'), 10) || 0
-            } catch (e) { /* skip */ }
-            return 0
-        }
+            totalCompliant += compliant;
+            totalBetweenPairs += betweenPair;
 
-        function countDistinctParentsWithRel(parentCls, relName, childCls, useInstanceOf) {
-            try {
-                var ga = new GlideAggregate('cmdb_rel_ci')
-                ga.addAggregate('COUNT', 'DISTINCT', 'parent')
-                ga.addQuery('parent.sys_class_name', parentCls)
-                ga.addQuery('type.name', relName)
-                if (useInstanceOf) {
-                    ga.addQuery('child.sys_class_name', 'INSTANCEOF', childCls)
-                } else {
-                    ga.addQuery('child.sys_class_name', childCls)
-                }
-                ga.query()
-                if (ga.next()) return parseInt(ga.getAggregate('COUNT', 'DISTINCT', 'parent'), 10) || 0
-            } catch (e) { /* skip */ }
-            return 0
-        }
-
-        // ── Stage 1–2: Evaluate each rule ──────────────────────────────
-        var ruleResults = []
-        var totalCompliant = 0
-        var totalBetweenPairs = 0
-        var coverageWeightedSum = 0
-        var coverageRulesEvaluated = 0
-
-        for (var i = 0; i < RULES.length; i++) {
-            var rule = RULES[i]
-            var compliant = countRels(rule.parent, rule.rel, rule.child, rule.childInstanceOf)
-            var betweenPair = countRelsBetweenPairAnyType(rule.parent, rule.child, rule.childInstanceOf)
-            var parentCICount = countCIs(rule.parent)
-            var parentsWithRel = countDistinctParentsWithRel(rule.parent, rule.rel, rule.child, rule.childInstanceOf)
-
-            totalCompliant += compliant
-            totalBetweenPairs += betweenPair
-
-            var ruleCoverage = parentCICount > 0 ? Math.round((parentsWithRel / parentCICount) * 100) : -1
+            var ruleCoverage = parentCICount > 0 ? Math.round((parentsWithRel / parentCICount) * 100) : -1;
             if (parentCICount > 0) {
-                coverageWeightedSum += (parentsWithRel / parentCICount)
-                coverageRulesEvaluated++
+                coverageWeightedSum += parentsWithRel / parentCICount;
+                coverageRulesEvaluated++;
             }
 
             ruleResults.push({
@@ -481,109 +685,115 @@ CSDMScoreCalculator.prototype = {
                 totalBetweenPair: betweenPair,
                 parentCIs: parentCICount,
                 parentCIsWithRel: parentsWithRel,
-                coveragePct: ruleCoverage
-            })
+                coveragePct: ruleCoverage,
+            });
         }
 
-        // ── Stage 3a: Total in-scope relationships (denominator) ───────
-        // In-scope = relationships where parent is a CSDM-relevant class
-        var totalInScope = 0
-        var parentKeys = Object.keys(inScopeParents)
+        // ── Stage 3a: Total in-scope relationships (denominator) ──────
+        var totalInScope = 0;
+        var parentKeys = Object.keys(inScopeParents);
         for (var k = 0; k < parentKeys.length; k++) {
             try {
-                var gaScope = new GlideAggregate('cmdb_rel_ci')
-                gaScope.addAggregate('COUNT')
-                gaScope.addQuery('parent.sys_class_name', parentKeys[k])
-                gaScope.query()
+                var gaScope = new GlideAggregate('cmdb_rel_ci');
+                gaScope.addAggregate('COUNT');
+                gaScope.addQuery('parent.sys_class_name', parentKeys[k]);
+                gaScope.query();
                 if (gaScope.next()) {
-                    totalInScope += parseInt(gaScope.getAggregate('COUNT'), 10) || 0
+                    totalInScope += parseInt(gaScope.getAggregate('COUNT'), 10) || 0;
                 }
-            } catch (e) { /* skip */ }
+            } catch (e) {
+                gs.warn('CSDMScoreCalculator: In-scope count failed for parent ' + parentKeys[k] + ' - ' + e.message);
+            }
         }
 
-        // ── Stage 3b: Sub-metric 1 – Type Correctness (40%) ───────────
-        // Of rels between expected class pairs, how many use the CSDM type?
-        var typeCorrectnessScore = totalBetweenPairs > 0
-            ? Math.round((totalCompliant / totalBetweenPairs) * 100) : 0
+        // ── Stage 3b: Sub-metric 1 – Type Correctness (40%) ──────────
+        var typeCorrectnessScore = totalBetweenPairs > 0 ? Math.round((totalCompliant / totalBetweenPairs) * 100) : 0;
 
-        // ── Stage 3c: Sub-metric 2 – Class-Pair Correctness (30%) ─────
-        // Of in-scope rels, how many connect expected class pairs?
-        var classPairScore = totalInScope > 0
-            ? Math.round((totalBetweenPairs / totalInScope) * 100) : 0
+        // ── Stage 3c: Sub-metric 2 – Class-Pair Correctness (30%) ────
+        var classPairScore = totalInScope > 0 ? Math.round((totalBetweenPairs / totalInScope) * 100) : 0;
 
-        // ── Stage 3d: Sub-metric 3 – Coverage (20%) ───────────────────
-        // Average: what % of parent CIs have expected rels?
-        var coverageScore = coverageRulesEvaluated > 0
-            ? Math.round((coverageWeightedSum / coverageRulesEvaluated) * 100) : 0
+        // ── Stage 3d: Sub-metric 3 – Coverage (20%) ──────────────────
+        var coverageScore =
+            coverageRulesEvaluated > 0 ? Math.round((coverageWeightedSum / coverageRulesEvaluated) * 100) : 0;
 
-        // ── Stage 3e: Sub-metric 4 – Integrity (10%) ──────────────────
-        var retiredCount = 0
-        var orphanRefCount = 0
+        // ── Stage 3e: Sub-metric 4 – Integrity (10%) ─────────────────
+        var retiredCount = 0;
+        var orphanRefCount = 0;
         try {
             // Rels involving retired CIs (install_status = 7 = Retired)
-            var gaRetP = new GlideAggregate('cmdb_rel_ci')
-            gaRetP.addAggregate('COUNT')
-            gaRetP.addQuery('parent.install_status', '7')
-            gaRetP.query()
-            if (gaRetP.next()) retiredCount += parseInt(gaRetP.getAggregate('COUNT'), 10) || 0
+            var gaRetP = new GlideAggregate('cmdb_rel_ci');
+            gaRetP.addAggregate('COUNT');
+            gaRetP.addQuery('parent.install_status', '7');
+            gaRetP.query();
+            if (gaRetP.next()) retiredCount += parseInt(gaRetP.getAggregate('COUNT'), 10) || 0;
 
-            var gaRetC = new GlideAggregate('cmdb_rel_ci')
-            gaRetC.addAggregate('COUNT')
-            gaRetC.addQuery('child.install_status', '7')
-            gaRetC.query()
-            if (gaRetC.next()) retiredCount += parseInt(gaRetC.getAggregate('COUNT'), 10) || 0
+            var gaRetC = new GlideAggregate('cmdb_rel_ci');
+            gaRetC.addAggregate('COUNT');
+            gaRetC.addQuery('child.install_status', '7');
+            gaRetC.query();
+            if (gaRetC.next()) retiredCount += parseInt(gaRetC.getAggregate('COUNT'), 10) || 0;
 
             // Rels with empty parent or child (orphaned references)
-            var gaOrpP = new GlideAggregate('cmdb_rel_ci')
-            gaOrpP.addAggregate('COUNT')
-            gaOrpP.addQuery('parent', '')
-            gaOrpP.query()
-            if (gaOrpP.next()) orphanRefCount += parseInt(gaOrpP.getAggregate('COUNT'), 10) || 0
+            var gaOrpP = new GlideAggregate('cmdb_rel_ci');
+            gaOrpP.addAggregate('COUNT');
+            gaOrpP.addQuery('parent', '');
+            gaOrpP.query();
+            if (gaOrpP.next()) orphanRefCount += parseInt(gaOrpP.getAggregate('COUNT'), 10) || 0;
 
-            var gaOrpC = new GlideAggregate('cmdb_rel_ci')
-            gaOrpC.addAggregate('COUNT')
-            gaOrpC.addQuery('child', '')
-            gaOrpC.query()
-            if (gaOrpC.next()) orphanRefCount += parseInt(gaOrpC.getAggregate('COUNT'), 10) || 0
-        } catch (e) { /* skip */ }
+            var gaOrpC = new GlideAggregate('cmdb_rel_ci');
+            gaOrpC.addAggregate('COUNT');
+            gaOrpC.addQuery('child', '');
+            gaOrpC.query();
+            if (gaOrpC.next()) orphanRefCount += parseInt(gaOrpC.getAggregate('COUNT'), 10) || 0;
+        } catch (e) {
+            gs.warn('CSDMScoreCalculator: Integrity check failed - ' + e.message);
+        }
 
-        var totalRelCount = 0
+        var totalRelCount = 0;
         try {
-            var gaAll = new GlideAggregate('cmdb_rel_ci')
-            gaAll.addAggregate('COUNT')
-            gaAll.query()
-            if (gaAll.next()) totalRelCount = parseInt(gaAll.getAggregate('COUNT'), 10) || 0
-        } catch (e) { /* skip */ }
+            var gaAll = new GlideAggregate('cmdb_rel_ci');
+            gaAll.addAggregate('COUNT');
+            gaAll.query();
+            if (gaAll.next()) totalRelCount = parseInt(gaAll.getAggregate('COUNT'), 10) || 0;
+        } catch (e) {
+            gs.warn('CSDMScoreCalculator: Total rel count failed - ' + e.message);
+        }
 
-        var badRels = retiredCount + orphanRefCount
-        var integrityScore = totalRelCount > 0
-            ? Math.max(0, Math.round((1 - (badRels / totalRelCount)) * 100)) : 100
+        var badRels = retiredCount + orphanRefCount;
+        var integrityScore = totalRelCount > 0 ? Math.max(0, Math.round((1 - badRels / totalRelCount) * 100)) : 100;
 
-        // ── Stage 4: Combined score ────────────────────────────────────
+        // ── Stage 4: Combined score ───────────────────────────────────
         var score = Math.round(
-            typeCorrectnessScore * 0.40 +
-            classPairScore * 0.30 +
-            coverageScore * 0.20 +
-            integrityScore * 0.10
-        )
+            typeCorrectnessScore * 0.4 + classPairScore * 0.3 + coverageScore * 0.2 + integrityScore * 0.1
+        );
 
         // Build type distribution for backward compat
-        var typeDistribution = []
+        var typeDistribution = [];
         try {
-            var gaTD = new GlideAggregate('cmdb_rel_ci')
-            gaTD.addAggregate('COUNT')
-            gaTD.groupBy('type')
-            gaTD.query()
+            var gaTD = new GlideAggregate('cmdb_rel_ci');
+            gaTD.addAggregate('COUNT');
+            gaTD.groupBy('type');
+            gaTD.query();
             while (gaTD.next()) {
-                var tdName = gaTD.type.getDisplayValue() || 'Unknown'
-                var tdCnt = parseInt(gaTD.getAggregate('COUNT'), 10) || 0
-                typeDistribution.push({ type_name: tdName, count: tdCnt, recommended: false })
+                var tdName = gaTD.type.getDisplayValue() || 'Unknown';
+                var tdCnt = parseInt(gaTD.getAggregate('COUNT'), 10) || 0;
+                typeDistribution.push({ type_name: tdName, count: tdCnt, recommended: false });
             }
-            typeDistribution.sort(function(a, b) { return b.count - a.count })
-            typeDistribution = typeDistribution.slice(0, 15)
-        } catch (e) { /* skip */ }
+            typeDistribution.sort(function (a, b) {
+                return b.count - a.count;
+            });
+            typeDistribution = typeDistribution.slice(0, 15);
+        } catch (e) {
+            gs.warn('CSDMScoreCalculator: Type distribution query failed - ' + e.message);
+        }
 
-        var description = totalCompliant + '/' + totalInScope + ' in-scope relationships are CSDM-compliant (' + score + '% composite)'
+        var description =
+            totalCompliant +
+            '/' +
+            totalInScope +
+            ' in-scope relationships are CSDM-compliant (' +
+            score +
+            '% composite)';
 
         return {
             score: score,
@@ -596,242 +806,231 @@ CSDMScoreCalculator.prototype = {
                 nonRecommended: totalInScope - totalCompliant,
                 typeDistribution: typeDistribution,
                 subMetrics: {
-                    typeCorrectness:  { score: typeCorrectnessScore, weight: 0.40, label: 'Type Correctness',  detail: totalCompliant + '/' + totalBetweenPairs + ' rels use CSDM-expected type between correct class pairs' },
-                    classPairMatch:   { score: classPairScore,       weight: 0.30, label: 'Class-Pair Match',  detail: totalBetweenPairs + '/' + totalInScope + ' in-scope rels connect CSDM-expected class pairs' },
-                    coverage:         { score: coverageScore,        weight: 0.20, label: 'Relationship Coverage', detail: coverageRulesEvaluated + ' rules evaluated, avg ' + coverageScore + '% of parent CIs have expected rels' },
-                    integrity:        { score: integrityScore,       weight: 0.10, label: 'Integrity',         detail: retiredCount + ' retired CI refs, ' + orphanRefCount + ' orphaned refs out of ' + totalRelCount + ' total' }
+                    typeCorrectness: {
+                        score: typeCorrectnessScore,
+                        weight: 0.4,
+                        label: 'Type Correctness',
+                        detail:
+                            totalCompliant +
+                            '/' +
+                            totalBetweenPairs +
+                            ' rels use CSDM-expected type between correct class pairs',
+                    },
+                    classPairMatch: {
+                        score: classPairScore,
+                        weight: 0.3,
+                        label: 'Class-Pair Match',
+                        detail:
+                            totalBetweenPairs + '/' + totalInScope + ' in-scope rels connect CSDM-expected class pairs',
+                    },
+                    coverage: {
+                        score: coverageScore,
+                        weight: 0.2,
+                        label: 'Relationship Coverage',
+                        detail:
+                            coverageRulesEvaluated +
+                            ' rules evaluated, avg ' +
+                            coverageScore +
+                            '% of parent CIs have expected rels',
+                    },
+                    integrity: {
+                        score: integrityScore,
+                        weight: 0.1,
+                        label: 'Integrity',
+                        detail:
+                            retiredCount +
+                            ' retired CI refs, ' +
+                            orphanRefCount +
+                            ' orphaned refs out of ' +
+                            totalRelCount +
+                            ' total',
+                    },
                 },
                 ruleResults: ruleResults,
                 summary: {
                     totalInScope: totalInScope,
                     totalCompliant: totalCompliant,
                     totalBetweenPairs: totalBetweenPairs,
-                    totalRules: RULES.length,
+                    totalRules: rules.length,
                     rulesWithData: coverageRulesEvaluated,
                     retiredRefs: retiredCount,
-                    orphanedRefs: orphanRefCount
-                }
-            }
-        }
+                    orphanedRefs: orphanRefCount,
+                },
+            },
+        };
     },
 
-    /**
-     * Dimension 5: Lifecycle Governance (Weight: 10%)
-     * Checks if critical CIs have lifecycle stage populated.
-     */
-    calculateLifecycleGovernance: function () {
-        var criticalTables = [
-            'cmdb_ci_server',
-            'cmdb_ci_appl',
-            'cmdb_ci_service',
-            'cmdb_ci_service_technical',
-        ]
+    // ══════════════════════════════════════════════════════════════════
+    //  Dimension 5: Lifecycle Governance (Weight: 10%) — UNCHANGED
+    // ══════════════════════════════════════════════════════════════════
 
-        var totalCriticalCIs = 0
-        var withLifecycle = 0
-        var tableDetails = []
+    calculateLifecycleGovernance: function () {
+        var criticalTables = ['cmdb_ci_server', 'cmdb_ci_appl', 'cmdb_ci_service', 'cmdb_ci_service_technical'];
+
+        var totalCriticalCIs = 0;
+        var withLifecycle = 0;
+        var tableDetails = [];
 
         for (var t = 0; t < criticalTables.length; t++) {
-            var tableName = criticalTables[t]
-            var tableTotal = 0
-            var tableWithLC = 0
+            var tableName = criticalTables[t];
+            var tableTotal = 0;
+            var tableWithLC = 0;
 
             try {
                 // Total records
-                var gaTotal = new GlideAggregate(tableName)
-                gaTotal.addAggregate('COUNT')
-                gaTotal.query()
+                var gaTotal = new GlideAggregate(tableName);
+                gaTotal.addAggregate('COUNT');
+                gaTotal.query();
                 if (gaTotal.next()) {
-                    tableTotal =
-                        parseInt(gaTotal.getAggregate('COUNT'), 10) || 0
+                    tableTotal = parseInt(gaTotal.getAggregate('COUNT'), 10) || 0;
                 }
 
                 // Records with lifecycle stage or status
                 if (tableTotal > 0) {
-                    var gr = new GlideRecord(tableName)
-                    var qc = gr.addNotNullQuery('life_cycle_stage')
-                    qc.addOrCondition('life_cycle_stage_status', '!=', '')
-                    gr.query()
-                    tableWithLC = gr.getRowCount()
+                    var gr = new GlideRecord(tableName);
+                    var qc = gr.addNotNullQuery('life_cycle_stage');
+                    qc.addOrCondition('life_cycle_stage_status', '!=', '');
+                    gr.query();
+                    tableWithLC = gr.getRowCount();
                 }
             } catch (e) {
-                tableTotal = 0
-                tableWithLC = 0
+                tableTotal = 0;
+                tableWithLC = 0;
             }
 
-            totalCriticalCIs += tableTotal
-            withLifecycle += tableWithLC
+            totalCriticalCIs += tableTotal;
+            withLifecycle += tableWithLC;
 
             tableDetails.push({
                 table: tableName,
                 total: tableTotal,
                 withLifecycle: tableWithLC,
-            })
+            });
         }
 
-        var score =
-            totalCriticalCIs > 0
-                ? Math.round((withLifecycle / totalCriticalCIs) * 100)
-                : 0
+        var score = totalCriticalCIs > 0 ? Math.round((withLifecycle / totalCriticalCIs) * 100) : 0;
 
         return {
             score: score,
             weight: 0.1,
             label: 'Lifecycle Governance',
-            description:
-                withLifecycle +
-                '/' +
-                totalCriticalCIs +
-                ' critical CIs have lifecycle status set',
+            description: withLifecycle + '/' + totalCriticalCIs + ' critical CIs have lifecycle status set',
             details: {
                 total: totalCriticalCIs,
                 withLifecycle: withLifecycle,
                 tables: tableDetails,
             },
-        }
+        };
     },
 
-    /**
-     * Dimension 6: Data Hygiene (Weight: 10%)
-     * Checks for stale and orphaned CIs.
-     */
+    // ══════════════════════════════════════════════════════════════════
+    //  Dimension 6: Data Hygiene (Weight: 10%) — UNCHANGED
+    // ══════════════════════════════════════════════════════════════════
+
     calculateDataHygiene: function () {
-        var totalCIs = 0
-        var staleCIs = 0
-        var orphanedCIs = 0
+        var totalCIs = 0;
+        var staleCIs = 0;
+        var orphanedCIs = 0;
 
         try {
             // Total CIs
-            var gaTotal = new GlideAggregate('cmdb_ci')
-            gaTotal.addAggregate('COUNT')
-            gaTotal.query()
+            var gaTotal = new GlideAggregate('cmdb_ci');
+            gaTotal.addAggregate('COUNT');
+            gaTotal.query();
             if (gaTotal.next()) {
-                totalCIs =
-                    parseInt(gaTotal.getAggregate('COUNT'), 10) || 0
+                totalCIs = parseInt(gaTotal.getAggregate('COUNT'), 10) || 0;
             }
 
             // Stale CIs: not updated in 180 days
-            var staleDate = new GlideDateTime()
-            staleDate.addDaysLocalTime(-180)
+            var staleDate = new GlideDateTime();
+            staleDate.addDaysLocalTime(-180);
 
-            var gaStale = new GlideAggregate('cmdb_ci')
-            gaStale.addAggregate('COUNT')
-            gaStale.addQuery('sys_updated_on', '<', staleDate.getValue())
-            gaStale.query()
+            var gaStale = new GlideAggregate('cmdb_ci');
+            gaStale.addAggregate('COUNT');
+            gaStale.addQuery('sys_updated_on', '<', staleDate.getValue());
+            gaStale.query();
             if (gaStale.next()) {
-                staleCIs =
-                    parseInt(gaStale.getAggregate('COUNT'), 10) || 0
+                staleCIs = parseInt(gaStale.getAggregate('COUNT'), 10) || 0;
             }
 
             // Orphaned CIs: not in any relationship
-            var cisWithRels = 0
+            var cisWithRels = 0;
 
             // Count distinct CIs that appear as parent
-            var gaParent = new GlideAggregate('cmdb_rel_ci')
-            gaParent.addAggregate('COUNT', 'DISTINCT', 'parent')
-            gaParent.query()
-            var parentCount = 0
+            var gaParent = new GlideAggregate('cmdb_rel_ci');
+            gaParent.addAggregate('COUNT', 'DISTINCT', 'parent');
+            gaParent.query();
+            var parentCount = 0;
             if (gaParent.next()) {
-                parentCount =
-                    parseInt(
-                        gaParent.getAggregate('COUNT', 'DISTINCT', 'parent'),
-                        10
-                    ) || 0
+                parentCount = parseInt(gaParent.getAggregate('COUNT', 'DISTINCT', 'parent'), 10) || 0;
             }
 
             // Count distinct CIs that appear as child
-            var gaChild = new GlideAggregate('cmdb_rel_ci')
-            gaChild.addAggregate('COUNT', 'DISTINCT', 'child')
-            gaChild.query()
-            var childCount = 0
+            var gaChild = new GlideAggregate('cmdb_rel_ci');
+            gaChild.addAggregate('COUNT', 'DISTINCT', 'child');
+            gaChild.query();
+            var childCount = 0;
             if (gaChild.next()) {
-                childCount =
-                    parseInt(
-                        gaChild.getAggregate('COUNT', 'DISTINCT', 'child'),
-                        10
-                    ) || 0
+                childCount = parseInt(gaChild.getAggregate('COUNT', 'DISTINCT', 'child'), 10) || 0;
             }
 
             // Approximate unique CIs with relationships (may overlap)
-            cisWithRels = Math.min(
-                totalCIs,
-                Math.max(parentCount, childCount)
-            )
-            orphanedCIs = Math.max(0, totalCIs - cisWithRels)
+            cisWithRels = Math.min(totalCIs, Math.max(parentCount, childCount));
+            orphanedCIs = Math.max(0, totalCIs - cisWithRels);
         } catch (e) {
-            totalCIs = 0
-            staleCIs = 0
-            orphanedCIs = 0
+            totalCIs = 0;
+            staleCIs = 0;
+            orphanedCIs = 0;
         }
 
-        var score = 0
+        var score = 0;
         if (totalCIs > 0) {
-            score = Math.max(
-                0,
-                Math.round(
-                    100 -
-                        (staleCIs / totalCIs) * 50 -
-                        (orphanedCIs / totalCIs) * 50
-                )
-            )
+            score = Math.max(0, Math.round(100 - (staleCIs / totalCIs) * 50 - (orphanedCIs / totalCIs) * 50));
         }
 
         return {
             score: score,
             weight: 0.1,
             label: 'Data Hygiene',
-            description:
-                staleCIs +
-                ' stale CIs (>180 days), ~' +
-                orphanedCIs +
-                ' potentially orphaned',
+            description: staleCIs + ' stale CIs (>180 days), ~' + orphanedCIs + ' potentially orphaned',
             details: {
                 staleCIs: staleCIs,
                 orphanedCIs: orphanedCIs,
                 totalCIs: totalCIs,
                 staleThresholdDays: 180,
             },
-        }
+        };
     },
 
-    /**
-     * Dimension 7: Customization Risk (Weight: 10%)
-     * Checks for custom fields and business rules on core CMDB tables.
-     */
+    // ══════════════════════════════════════════════════════════════════
+    //  Dimension 7: Customization Risk (Weight: 10%) — UNCHANGED
+    // ══════════════════════════════════════════════════════════════════
+
     calculateCustomizationRisk: function () {
-        var coreTables = [
-            'cmdb_ci',
-            'cmdb_ci_server',
-            'cmdb_ci_appl',
-            'cmdb_ci_service',
-        ]
-        var customizations = []
-        var highCount = 0
-        var mediumCount = 0
-        var lowCount = 0
+        var coreTables = ['cmdb_ci', 'cmdb_ci_server', 'cmdb_ci_appl', 'cmdb_ci_service'];
+        var customizations = [];
+        var highCount = 0;
+        var mediumCount = 0;
+        var lowCount = 0;
 
         for (var t = 0; t < coreTables.length; t++) {
-            var tableName = coreTables[t]
+            var tableName = coreTables[t];
 
             // Custom fields (medium risk)
             try {
-                var dictGr = new GlideRecord('sys_dictionary')
-                dictGr.addQuery('name', tableName)
-                dictGr.addQuery('element', 'STARTSWITH', 'u_')
-                dictGr.query()
+                var dictGr = new GlideRecord('sys_dictionary');
+                dictGr.addQuery('name', tableName);
+                dictGr.addQuery('element', 'STARTSWITH', 'u_');
+                dictGr.query();
                 while (dictGr.next()) {
                     customizations.push({
                         type: 'custom_field',
                         severity: 'medium',
                         table: tableName,
                         name: dictGr.getValue('element') || '',
-                        description:
-                            'Custom field on ' +
-                            tableName +
-                            ': ' +
-                            (dictGr.getValue('element') || ''),
-                    })
-                    mediumCount++
+                        description: 'Custom field on ' + tableName + ': ' + (dictGr.getValue('element') || ''),
+                    });
+                    mediumCount++;
                 }
             } catch (e) {
                 /* skip */
@@ -839,35 +1038,28 @@ CSDMScoreCalculator.prototype = {
 
             // Custom business rules (high risk)
             try {
-                var brGr = new GlideRecord('sys_script')
-                brGr.addQuery('collection', tableName)
-                brGr.addQuery('sys_scope', '!=', 'global')
-                brGr.addQuery('active', 'true')
-                brGr.query()
+                var brGr = new GlideRecord('sys_script');
+                brGr.addQuery('collection', tableName);
+                brGr.addQuery('sys_scope', '!=', 'global');
+                brGr.addQuery('active', 'true');
+                brGr.query();
                 while (brGr.next()) {
                     customizations.push({
                         type: 'business_rule',
                         severity: 'high',
                         table: tableName,
                         name: brGr.getValue('name') || 'Unknown',
-                        description:
-                            'Custom BR on ' +
-                            tableName +
-                            ': ' +
-                            (brGr.getValue('name') || ''),
-                    })
-                    highCount++
+                        description: 'Custom BR on ' + tableName + ': ' + (brGr.getValue('name') || ''),
+                    });
+                    highCount++;
                 }
             } catch (e) {
                 /* skip */
             }
         }
 
-        var totalCustomizations = highCount + mediumCount + lowCount
-        var score = Math.max(
-            0,
-            100 - (highCount * 10 + mediumCount * 5 + lowCount * 2)
-        )
+        var totalCustomizations = highCount + mediumCount + lowCount;
+        var score = Math.max(0, 100 - (highCount * 10 + mediumCount * 5 + lowCount * 2));
 
         return {
             score: score,
@@ -891,43 +1083,44 @@ CSDMScoreCalculator.prototype = {
                     low: lowCount,
                 },
             },
-        }
+        };
     },
 
+    // ══════════════════════════════════════════════════════════════════
+    //  Orchestrator & Persistence
+    // ══════════════════════════════════════════════════════════════════
+
     /**
-     * Orchestrator: Runs all 7 dimension calculations and produces the full result.
+     * Runs all 7 dimension calculations and produces the full result.
      */
     runFullScan: function () {
-        var dimensions = []
+        var dimensions = [];
 
-        dimensions.push(this.calculateDomainCoverage())
-        dimensions.push(this.calculateDataCompleteness())
-        dimensions.push(this.calculateServiceModelDepth())
-        dimensions.push(this.calculateRelationshipCompliance())
-        dimensions.push(this.calculateLifecycleGovernance())
-        dimensions.push(this.calculateDataHygiene())
-        dimensions.push(this.calculateCustomizationRisk())
+        dimensions.push(this.calculateDomainCoverage());
+        dimensions.push(this.calculateDataCompleteness());
+        dimensions.push(this.calculateServiceModelDepth());
+        dimensions.push(this.calculateRelationshipCompliance());
+        dimensions.push(this.calculateLifecycleGovernance());
+        dimensions.push(this.calculateDataHygiene());
+        dimensions.push(this.calculateCustomizationRisk());
 
         // Calculate weighted overall score
-        var overallScore = 0
+        var overallScore = 0;
         for (var i = 0; i < dimensions.length; i++) {
-            overallScore += dimensions[i].score * dimensions[i].weight
+            overallScore += dimensions[i].score * dimensions[i].weight;
         }
-        overallScore = Math.round(overallScore)
+        overallScore = Math.round(overallScore);
 
         // Extract domain coverage details for scan_result fields
-        var domainCoverage = dimensions[0]
-        var totalClasses = domainCoverage.details.totalClasses || 0
-        var populatedClasses =
-            domainCoverage.details.populatedClasses || 0
+        var domainCoverage = dimensions[0];
+        var totalClasses = domainCoverage.details.totalClasses || 0;
+        var populatedClasses = domainCoverage.details.populatedClasses || 0;
 
         // Count risks and relationship issues
-        var riskDimension = dimensions[6]
-        var riskCount = riskDimension.details.summary
-            ? riskDimension.details.summary.total
-            : 0
-        var relDimension = dimensions[3]
-        var relationshipIssues = relDimension.details.nonRecommended || 0
+        var riskDimension = dimensions[6];
+        var riskCount = riskDimension.details.summary ? riskDimension.details.summary.total : 0;
+        var relDimension = dimensions[3];
+        var relationshipIssues = relDimension.details.nonRecommended || 0;
 
         var result = {
             score: overallScore,
@@ -939,12 +1132,12 @@ CSDMScoreCalculator.prototype = {
                 riskCount: riskCount,
                 relationshipIssues: relationshipIssues,
             },
-        }
+        };
 
         // Persist the scan result
-        this._saveScanResult(result)
+        this._saveScanResult(result);
 
-        return result
+        return result;
     },
 
     /**
@@ -952,25 +1145,16 @@ CSDMScoreCalculator.prototype = {
      */
     _saveScanResult: function (result) {
         try {
-            var gr = new GlideRecord('x_147805_csdmviz_scan_result')
-            gr.initialize()
-            gr.setValue(
-                'scan_name',
-                'CSDM Scan ' + new GlideDateTime().getDisplayValue()
-            )
-            gr.setValue('scan_date', new GlideDateTime().getValue())
-            gr.setValue('status', 'completed')
-            gr.setValue('overall_score', result.score)
-            gr.setValue('total_classes', result.summary.totalClasses)
-            gr.setValue(
-                'populated_classes',
-                result.summary.populatedClasses
-            )
-            gr.setValue('risk_count', result.summary.riskCount)
-            gr.setValue(
-                'relationship_issues',
-                result.summary.relationshipIssues
-            )
+            var gr = new GlideRecord('x_147805_csdmviz_scan_result');
+            gr.initialize();
+            gr.setValue('scan_name', 'CSDM Scan ' + new GlideDateTime().getDisplayValue());
+            gr.setValue('scan_date', new GlideDateTime().getValue());
+            gr.setValue('status', 'completed');
+            gr.setValue('overall_score', result.score);
+            gr.setValue('total_classes', result.summary.totalClasses);
+            gr.setValue('populated_classes', result.summary.populatedClasses);
+            gr.setValue('risk_count', result.summary.riskCount);
+            gr.setValue('relationship_issues', result.summary.relationshipIssues);
             gr.setValue(
                 'summary',
                 'CSDM 5.0 Adherence Score: ' +
@@ -984,15 +1168,12 @@ CSDMScoreCalculator.prototype = {
                     ' risks | ' +
                     result.summary.relationshipIssues +
                     ' relationship issues'
-            )
-            gr.setValue('scan_data', JSON.stringify(result))
-            return gr.insert()
+            );
+            gr.setValue('scan_data', JSON.stringify(result));
+            return gr.insert();
         } catch (e) {
-            gs.error(
-                'CSDMScoreCalculator: Failed to save scan result - ' +
-                    e.message
-            )
-            return null
+            gs.error('CSDMScoreCalculator: Failed to save scan result - ' + e.message);
+            return null;
         }
     },
 

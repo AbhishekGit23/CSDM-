@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update>
+    <sys_ui_section caption="Rule Definition" section_id="efc7cd7be92d43958ee9409e81d2d9ae" sys_domain="global" table="x_147805_csdmviz_rel_rule" version="3" view="">
+        <sys_ui_element action="INSERT_OR_UPDATE">
+            <element>.begin_split</element>
+            <position>0</position>
+            <sys_created_by>admin</sys_created_by>
+            <sys_created_on>2026-09-30 05:51:13</sys_created_on>
+            <sys_id>1575363d6ed3455ba624cdf1c410cc12</sys_id>
+            <sys_mod_count>0</sys_mod_count>
+            <sys_ui_formatter/>
+            <sys_ui_section caption="Rule Definition" display_value="Rule Definition" name="x_147805_csdmviz_rel_rule" sys_domain="global" view="Default view">efc7cd7be92d43958ee9409e81d2d9ae</sys_ui_section>
+            <sys_updated_by>admin</sys_updated_by>
+            <sys_updated_on>2026-09-30 05:51:13</sys_updated_on>
+            <sys_user/>
+            <type>.begin_split</type>
+        </sys_ui_element>
+        <sys_ui_element action="INSERT_OR_UPDATE">
+            <element>active</element>
+            <position>1</position>
+            <sys_created_by>admin</sys_created_by>
+            <sys_created_on>2026-09-30 05:51:13</sys_created_on>
+            <sys_id>d033ba1428904557913a09f1e26ad17b</sys_id>
+            <sys_mod_count>0</sys_mod_count>
+            <sys_ui_formatter/>
+            <sys_ui_section caption="Rule Definition" display_value="Rule Definition" name="x_147805_csdmviz_rel_rule" sys_domain="global" view="Default view">efc7cd7be92d43958ee9409e81d2d9ae</sys_ui_section>
+            <sys_updated_by>admin</sys_updated_by>
+            <sys_updated_on>2026-09-30 05:51:13</sys_updated_on>
+            <sys_user/>
+            <type/>
+        </sys_ui_element>
+        <sys_ui_element action="INSERT_OR_UPDATE">
+            <element>parent_class</element>
+            <position>2</position>
+            <sys_created_by>admin</sys_created_by>
+            <sys_created_on>2026-09-30 05:51:13</sys_created_on>
+            <sys_id>877ecb54c2994ec080e31a1ea7da967f</sys_id>
+            <sys_mod_count>0</sys_mod_count>
+            <sys_ui_formatter/>
+            <sys_ui_section caption="Rule Definition" display_value="Rule Definition" name="x_147805_csdmviz_rel_rule" sys_domain="global" view="Default view">efc7cd7be92d43958ee9409e81d2d9ae</sys_ui_section>
+            <sys_updated_by>admin</sys_updated_by>
+            <sys_updated_on>2026-09-30 05:51:13</sys_updated_on>
+            <sys_user/>
+            <type/>
+        </sys_ui_element>
+        <sys_ui_element action="INSERT_OR_UPDATE">
+            <element>child_class</element>
+            <position>3</position>
+            <sys_created_by>admin</sys_created_by>
+            <sys_created_on>2026-09-30 05:51:13</sys_created_on>
+            <sys_id>ff8a2b38bb534051a0451259c392c18f</sys_id>
+            <sys_mod_count>0</sys_mod_count>
+            <sys_ui_formatter/>
+            <sys_ui_section caption="Rule Definition" display_value="Rule Definition" name="x_147805_csdmviz_rel_rule" sys_domain="global" view="Default view">efc7cd7be92d43958ee9409e81d2d9ae</sys_ui_section>
+            <sys_updated_by>admin</sys_updated_by>
+            <sys_updated_on>2026-09-30 05:51:13</sys_updated_on>
+            <sys_user/>
+            <type/>
+        </sys_ui_element>
+        <sys_ui_element action="INSERT_OR_UPDATE">
+            <element>.split</element>
+            <position>4</position>
+            <sys_created_by>admin</sys_created_by>
+            <sys_created_on>2026-09-30 05:51:13</sys_created_on>
+            <sys_id>c2ac3ae5673b4b30bf528ae4a70d4b70</sys_id>
+            <sys_mod_count>0</sys_mod_count>
+            <sys_ui_formatter/>
+            <sys_ui_section caption="Rule Definition" display_value="Rule Definition" name="x_147805_csdmviz_rel_rule" sys_domain="global" view="Default view">efc7cd7be92d43958ee9409e81d2d9ae</sys_ui_section>
+            <sys_updated_by>admin</sys_updated_by>
+            <sys_updated_on>2026-09-30 05:51:13</sys_updated_on>
+            <sys_user/>
+            <type>.split</type>
+        </sys_ui_element>
+        <sys_ui_element action="INSERT_OR_UPDATE">
+            <element>service_model_relevant</element>
+            <position>5</position>
+            <sys_created_by>admin</sys_created_by>
+            <sys_created_on>2026-09-30 05:51:13</sys_created_on>
+            <sys_id>30424895251c42598c1230e5f6b85916</sys_id>
+            <sys_mod_count>0</sys_mod_count>
+            <sys_ui_formatter/>
+            <sys_ui_section caption="Rule Definition" display_value="Rule Definition" name="x_147805_csdmviz_rel_rule" sys_domain="global" view="Default view">efc7cd7be92d43958ee9409e81d2d9ae</sys_ui_section>
+            <sys_updated_by>admin</sys_updated_by>
+            <sys_updated_on>2026-09-30 05:51:13</sys_updated_on>
+            <sys_user/>
+            <type/>
+        </sys_ui_element>
+        <sys_ui_element action="INSERT_OR_UPDATE">
+            <element>relationship_type</element>
+            <position>6</position>
+            <sys_created_by>admin</sys_created_by>
+            <sys_created_on>2026-09-30 05:51:13</sys_created_on>
+            <sys_id>adf1c5e7fe9a4e85a9b3eaffb708d3dc</sys_id>
+            <sys_mod_count>0</sys_mod_count>
+            <sys_ui_formatter/>
+            <sys_ui_section caption="Rule Definition" display_value="Rule Definition" name="x_147805_csdmviz_rel_rule" sys_domain="global" view="Default view">efc7cd7be92d43958ee9409e81d2d9ae</sys_ui_section>
+            <sys_updated_by>admin</sys_updated_by>
+            <sys_updated_on>2026-09-30 05:51:13</sys_updated_on>
+            <sys_user/>
+            <type/>
+        </sys_ui_element>
+        <sys_ui_element action="INSERT_OR_UPDATE">
+            <element>child_instance_of</element>
+            <position>7</position>
+            <sys_created_by>admin</sys_created_by>
+            <sys_created_on>2026-09-30 05:51:13</sys_created_on>
+            <sys_id>803dbdd1f8dd4f75bc1de1805d1357a7</sys_id>
+            <sys_mod_count>0</sys_mod_count>
+            <sys_ui_formatter/>
+            <sys_ui_section caption="Rule Definition" display_value="Rule Definition" name="x_147805_csdmviz_rel_rule" sys_domain="global" view="Default view">efc7cd7be92d43958ee9409e81d2d9ae</sys_ui_section>
+            <sys_updated_by>admin</sys_updated_by>
+            <sys_updated_on>2026-09-30 05:51:13</sys_updated_on>
+            <sys_user/>
+            <type/>
+        </sys_ui_element>
+        <sys_ui_element action="INSERT_OR_UPDATE">
+            <element>.end_split</element>
+            <position>8</position>
+            <sys_created_by>admin</sys_created_by>
+            <sys_created_on>2026-09-30 05:51:13</sys_created_on>
+            <sys_id>3c55e7aba6674a9285f361fed0f16a30</sys_id>
+            <sys_mod_count>0</sys_mod_count>
+            <sys_ui_formatter/>
+            <sys_ui_section caption="Rule Definition" display_value="Rule Definition" name="x_147805_csdmviz_rel_rule" sys_domain="global" view="Default view">efc7cd7be92d43958ee9409e81d2d9ae</sys_ui_section>
+            <sys_updated_by>admin</sys_updated_by>
+            <sys_updated_on>2026-09-30 05:51:13</sys_updated_on>
+            <sys_user/>
+            <type>.end_split</type>
+        </sys_ui_element>
+        <sys_ui_section action="INSERT_OR_UPDATE">
+            <caption>Rule Definition</caption>
+            <header>false</header>
+            <name>x_147805_csdmviz_rel_rule</name>
+            <roles/>
+            <sys_class_name>sys_ui_section</sys_class_name>
+            <sys_created_by>admin</sys_created_by>
+            <sys_created_on>2026-09-29 08:37:18</sys_created_on>
+            <sys_domain>global</sys_domain>
+            <sys_domain_path>/</sys_domain_path>
+            <sys_id>efc7cd7be92d43958ee9409e81d2d9ae</sys_id>
+            <sys_mod_count>0</sys_mod_count>
+            <sys_name>x_147805_csdmviz_rel_rule</sys_name>
+            <sys_overrides/>
+            <sys_package display_value="CSDMViz" source="x_147805_csdmviz">1c9af66f83340350c07713e0deaad3c3</sys_package>
+            <sys_policy/>
+            <sys_scope display_value="CSDMViz">1c9af66f83340350c07713e0deaad3c3</sys_scope>
+            <sys_update_name>sys_ui_section_efc7cd7be92d43958ee9409e81d2d9ae</sys_update_name>
+            <sys_updated_by>admin</sys_updated_by>
+            <sys_updated_on>2026-09-29 08:37:18</sys_updated_on>
+            <sys_user/>
+            <title>false</title>
+            <view display_value="Default view" name="NULL">Default view</view>
+            <view_name/>
+        </sys_ui_section>
+    </sys_ui_section>
+</record_update>

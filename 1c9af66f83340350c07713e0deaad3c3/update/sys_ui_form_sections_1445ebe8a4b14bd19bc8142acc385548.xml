@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update>
+    <sys_ui_form_sections form_id="1445ebe8a4b14bd19bc8142acc385548" sys_domain="global" table="x_147805_csdmviz_rel_rule" version="3">
+        <sys_ui_form_section action="INSERT_OR_UPDATE">
+            <position>0</position>
+            <sys_created_by>admin</sys_created_by>
+            <sys_created_on>2026-09-30 05:51:12</sys_created_on>
+            <sys_domain>global</sys_domain>
+            <sys_domain_path>/</sys_domain_path>
+            <sys_id>2c5437c0ed44453dbe9e989ec3d7ba0e</sys_id>
+            <sys_mod_count>0</sys_mod_count>
+            <sys_overrides/>
+            <sys_ui_form display_value="x_147805_csdmviz_rel_rule" name="x_147805_csdmviz_rel_rule" sys_domain="global" view="Default view">1445ebe8a4b14bd19bc8142acc385548</sys_ui_form>
+            <sys_ui_section caption="Rule Definition" display_value="Rule Definition" name="x_147805_csdmviz_rel_rule" sys_domain="global" view="Default view">efc7cd7be92d43958ee9409e81d2d9ae</sys_ui_section>
+            <sys_updated_by>admin</sys_updated_by>
+            <sys_updated_on>2026-09-30 05:51:12</sys_updated_on>
+        </sys_ui_form_section>
+        <sys_ui_form_section action="INSERT_OR_UPDATE">
+            <position>1</position>
+            <sys_created_by>admin</sys_created_by>
+            <sys_created_on>2026-09-30 05:51:12</sys_created_on>
+            <sys_domain>global</sys_domain>
+            <sys_domain_path>/</sys_domain_path>
+            <sys_id>1e5836155612425f958418723eb3a903</sys_id>
+            <sys_mod_count>0</sys_mod_count>
+            <sys_overrides/>
+            <sys_ui_form display_value="x_147805_csdmviz_rel_rule" name="x_147805_csdmviz_rel_rule" sys_domain="global" view="Default view">1445ebe8a4b14bd19bc8142acc385548</sys_ui_form>
+            <sys_ui_section caption="Classification" display_value="Classification" name="x_147805_csdmviz_rel_rule" sys_domain="global" view="Default view">1705d404b6f1400da145050e4c760ead</sys_ui_section>
+            <sys_updated_by>admin</sys_updated_by>
+            <sys_updated_on>2026-09-30 05:51:12</sys_updated_on>
+        </sys_ui_form_section>
+        <sys_ui_form action="INSERT_OR_UPDATE">
+            <name>x_147805_csdmviz_rel_rule</name>
+            <roles/>
+            <sys_class_name>sys_ui_form</sys_class_name>
+            <sys_created_by>admin</sys_created_by>
+            <sys_created_on>2026-09-29 08:37:17</sys_created_on>
+            <sys_domain>global</sys_domain>
+            <sys_domain_path>/</sys_domain_path>
+            <sys_id>1445ebe8a4b14bd19bc8142acc385548</sys_id>
+            <sys_mod_count>0</sys_mod_count>
+            <sys_name>x_147805_csdmviz_rel_rule</sys_name>
+            <sys_overrides/>
+            <sys_package display_value="CSDMViz" source="x_147805_csdmviz">1c9af66f83340350c07713e0deaad3c3</sys_package>
+            <sys_policy/>
+            <sys_scope display_value="CSDMViz">1c9af66f83340350c07713e0deaad3c3</sys_scope>
+            <sys_update_name>sys_ui_form_sections_1445ebe8a4b14bd19bc8142acc385548</sys_update_name>
+            <sys_updated_by>admin</sys_updated_by>
+            <sys_updated_on>2026-09-29 08:37:17</sys_updated_on>
+            <sys_user/>
+            <view display_value="Default view" name="NULL">Default view</view>
+            <view_name/>
+        </sys_ui_form>
+    </sys_ui_form_sections>
+</record_update>

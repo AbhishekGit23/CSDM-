@@ -405,24 +405,30 @@ CSDMScoreCalculator.prototype = {
     // ══════════════════════════════════════════════════════════════════
 
     calculateDomainCoverage: function () {
+        // CSDM 5.0 domain-to-table mapping (aligned with ServiceNow standard)
         var domains = {
             foundation: {
                 label: 'Foundation',
                 tables: [
-                    'cmdb_ci_server',
-                    'cmdb_ci_computer',
-                    'cmdb_ci_vm_instance',
-                    'cmdb_ci_network_gear',
-                    'cmdb_ci_storage_device',
-                    'cmdb_ci_database_instance',
                     'cmn_location',
                     'core_company',
                     'cmn_department',
+                    'business_unit',
+                    'cmdb_model',
+                    'cmdb_group',
+                    'cmn_cost_center',
                 ],
             },
             design_application: {
                 label: 'Design - Application Portfolio',
-                tables: ['cmdb_ci_business_app', 'cmdb_ci_appl', 'cmdb_software_instance', 'cmdb_ci_spkg'],
+                tables: [
+                    'cmdb_ci_business_app',
+                    'cmdb_ci_appl',
+                    'cmdb_software_instance',
+                    'cmdb_ci_spkg',
+                    'cmdb_ci_information_object',
+                    'cmdb_ci_business_capability',
+                ],
             },
             manage_technical: {
                 label: 'Manage Technical Services',
@@ -431,6 +437,12 @@ CSDMScoreCalculator.prototype = {
                     'cmdb_ci_service_auto',
                     'cmdb_ci_service_discovered',
                     'cmdb_ci_endpoint',
+                    'cmdb_ci_server',
+                    'cmdb_ci_computer',
+                    'cmdb_ci_vm_instance',
+                    'cmdb_ci_network_gear',
+                    'cmdb_ci_storage_device',
+                    'cmdb_ci_database_instance',
                 ],
             },
             manage_business: {

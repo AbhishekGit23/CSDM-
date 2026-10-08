@@ -1,0 +1,1743 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_ui_page">
+    <sys_ui_page action="INSERT_OR_UPDATE">
+        <category/>
+        <client_script/>
+        <description>CSDM 5.0 Explorer Technical Design Document</description>
+        <direct>true</direct>
+        <endpoint>x_147805_csdmviz_tech_doc.do</endpoint>
+        <html><![CDATA[
+<html>
+  <head>
+    <meta charset="UTF-8">
+      <title>CSDM 5.0 Explorer — Technical Design Document</title>
+      <style>@media print { @page { margin: 0.75in; size: A4; } }
+    * { box-sizing: border-box; }
+    body {
+        font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Calibri, Arial, sans-serif;
+        font-size: 11pt;
+        line-height: 1.65;
+        color: #1a1a1a;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 30px 40px;
+        background: #fff;
+    }
+    h1 { font-size: 26pt; color: #0b3d2e; border-bottom: 3px solid #0b3d2e; padding-bottom: 10px; margin-top: 0; }
+    h2 { font-size: 18pt; color: #0b3d2e; border-bottom: 1.5px solid #d0d0d0; padding-bottom: 6px; margin-top: 36px; }
+    h3 { font-size: 14pt; color: #1a5632; margin-top: 24px; }
+    h4 { font-size: 12pt; color: #2a7a4a; margin-top: 18px; }
+    table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 10pt; }
+    th { background-color: #0b3d2e; color: #fff; padding: 8px 10px; text-align: left; font-weight: bold; border: 1px solid #0b3d2e; }
+    td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top; }
+    tr:nth-child(even) { background-color: #f5f9f7; }
+    tr:nth-child(odd) { background-color: #fff; }
+    code { font-family: 'Consolas', 'Courier New', monospace; font-size: 9.5pt; background-color: #f0f4f2; padding: 1px 5px; border-radius: 3px; color: #0b3d2e; }
+    pre { font-family: 'Consolas', 'Courier New', monospace; font-size: 9pt; background-color: #f8faf9; border: 1px solid #d0ddd5; border-left: 4px solid #0b3d2e; padding: 12px 16px; margin: 12px 0; white-space: pre-wrap; word-wrap: break-word; line-height: 1.5; }
+    .cover { text-align: center; padding: 120px 0 60px; border-bottom: 3px solid #0b3d2e; margin-bottom: 40px; }
+    .cover h1 { font-size: 36pt; border: none; margin-bottom: 4px; }
+    .cover .sub { font-size: 16pt; color: #555; margin-top: 10px; }
+    .cover .meta { font-size: 11pt; color: #777; margin-top: 50px; line-height: 2.2; }
+    .info { background: #e8f5e9; border-left: 4px solid #2e7d32; padding: 12px 16px; margin: 14px 0; font-size: 10.5pt; }
+    .formula { background: #f0f4f2; border: 1px solid #d0ddd5; padding: 12px 18px; margin: 12px 0; font-family: 'Consolas', monospace; font-size: 10pt; text-align: center; }
+    .diagram { background: #fafcfb; border: 1px solid #d0ddd5; padding: 16px; margin: 14px 0; font-family: 'Consolas', monospace; font-size: 9.5pt; line-height: 1.7; white-space: pre; overflow-x: auto; }
+    .sn { color: #0b3d2e; font-weight: bold; }
+    .print-btn { position: fixed; top: 20px; right: 20px; background: #0b3d2e; color: #fff; border: none; padding: 10px 20px; font-size: 12pt; border-radius: 6px; cursor: pointer; z-index: 999; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+    .print-btn:hover { background: #1a5632; }
+    @media print { .print-btn { display: none; } }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 9pt; font-weight: bold; color: white; }
+    .badge-orange { background: #e65100; }
+    .badge-red { background: #c62828; }
+    p { margin: 8px 0; }
+    ul, ol { margin: 8px 0 8px 22px; }
+    li { margin: 4px 0; }
+    hr.footer { border: 2px solid #0b3d2e; margin-top: 40px; }</style>
+    </meta>
+    <body>
+      <script src="tech-doc-init.tsx?uxpcb=$[UxFrameworkScriptables.getFlushTimestamp()]" type="module"></script>
+      <button class="print-btn" onclick="window.print()">]]>📄<![CDATA[ Print / Save PDF</button>
+      <!-- COVER -->
+      <div class="cover">
+        <h1>CSDM 5.0 Explorer</h1>
+        <div class="sub">Technical Design Document</div>
+        <div class="sub" style="font-size:13pt;color:#888;">Comprehensive Application Architecture &amp; Implementation Reference</div>
+        <div class="meta">
+          <strong>Application Scope:</strong>
+          x_147805_csdmviz
+          <br>
+            <strong>Version:</strong>
+            1.0.0
+            <br>
+              <strong>Platform:</strong>
+              ServiceNow (Scoped Application)
+              <br>
+                <strong>Document Date:</strong>
+                September 2026
+                <br>
+                  
+                  <strong>Classification:</strong>
+                  Internal — Technical Reference
+                </br>
+              </br>
+              <!-- TOC -->
+              <h2>Table of Contents</h2>
+              <ol>
+                <li>
+                  <a href="#s1">Executive Summary</a>
+                </li>
+                <li>
+                  <a href="#s2">Application Architecture</a>
+                </li>
+                <li>
+                  <a href="#s3">Application Metadata Inventory</a>
+                </li>
+                <li>
+                  <a href="#s4">Data Model</a>
+                </li>
+                <li>
+                  <a href="#s5">Scoring Engine — CSDMScoreCalculator</a>
+                </li>
+                <li>
+                  <a href="#s6">Dimension Calculations — Detailed Logic</a>
+                </li>
+                <li>
+                  <a href="#s7">REST API</a>
+                </li>
+                <li>
+                  <a href="#s8">Seed Configuration — 14 CSDM Relationship Rules</a>
+                </li>
+                <li>
+                  <a href="#s9">UI &amp; Navigation</a>
+                </li>
+                <li>
+                  <a href="#s10">Scan Execution Flow</a>
+                </li>
+                <li>
+                  <a href="#s11">Caching &amp; Performance</a>
+                </li>
+                <li>
+                  <a href="#s12">Error Handling</a>
+                </li>
+                <li>
+                  <a href="#s13">File Structure</a>
+                </li>
+                <li>
+                  <a href="#s14">Configuration &amp; Administration</a>
+                </li>
+                <li>
+                  <a href="#s15">Dependencies</a>
+                </li>
+                <li>
+                  <a href="#s16">Security Considerations</a>
+                </li>
+              </ol>
+              <!-- SECTION 1 -->
+              <h2 id="s1">
+                
+                <span class="sn">1</span>
+                Executive Summary
+              </h2>
+              <p>
+                CSDM 5.0 Explorer is a ServiceNow scoped application that provides
+                <strong>real-time CMDB health assessment</strong>
+                against the ServiceNow Common Service Data Model (CSDM) 5.0 standard. It evaluates CMDB adherence across
+                <strong>7 weighted dimensions</strong>
+                , computes an overall compliance score (0–100), persists historical scan results, and exposes the data through a REST API consumed by a
+                <strong>3D visualization frontend</strong>
+                .
+              </p>
+              <p>The application enables CMDB teams to answer:
+                <em>"How well does our CMDB conform to CSDM 5.0, and where are the gaps?"</em>
+              </p>
+              <div class="info">
+                <strong>Key Capabilities:</strong>
+                <ul>
+                  <li>7-dimension CSDM adherence scoring with configurable relationship rules</li>
+                  <li>3-component Service Model Depth analysis (Population + Relationship Coverage + Chain Depth)</li>
+                  <li>4-sub-metric Relationship Compliance scoring (Type Correctness + Class-Pair Match + Coverage + Integrity)</li>
+                  <li>Configuration-driven rule management — no code changes needed to add/modify rules</li>
+                  <li>Automatic scan result persistence with full JSON breakdown</li>
+                  <li>REST API for integration with 3D Explorer UI and external consumers</li>
+                </ul>
+              </div>
+              <!-- SECTION 2 -->
+              <h2 id="s2">
+                
+                <span class="sn">2</span>
+                Application Architecture
+              </h2>
+              <div class="diagram">┌──────────────────────────────────────────────────────────────────────┐
+│                            FRONTEND                                   │
+│   ┌────────────────────────────────────────────┐                     │
+│   │  3D Explorer UI Page (React 18.2 + Three.js)│                    │
+│   │  Endpoint: x_147805_csdmviz_explorer.do     │                    │
+│   └──────────────────────┬──────────────────────┘                    │
+└──────────────────────────┼───────────────────────────────────────────┘
+                           │  HTTP GET /overview
+                           ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                        REST API LAYER                                 │
+│   GET  /overview  → Full CSDM scan                                   │
+│   POST /query     → Live CMDB query                                  │
+└──────────────────────────┬───────────────────────────────────────────┘
+                           │  Instantiates
+                           ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                     SERVER-SIDE LOGIC                                  │
+│                                                                       │
+│   CSDMScoreCalculator ◄──── x_147805_csdmviz_rel_rule               │
+│   (Script Include)          (Configuration Table: 14 Rules)          │
+│   • 7 Dimension Calculations                                         │
+│   • runFullScan() Orchestrator                                       │
+│   • _saveScanResult() Persistence                                    │
+│                                                                       │
+└──────────┬──────────────┬────────────────────────────────────────────┘
+           │              │  Persists
+           ▼              ▼
+    ┌──────────┐   ┌──────────────────────────────┐
+    │ CMDB     │   │ x_147805_csdmviz_scan_result │
+    │ (24+ tbl)│   │ (Scan History &amp; Trend Data)   │
+    └──────────┘   └──────────────────────────────┘</div>
+              <!-- SECTION 3 -->
+              <h2 id="s3">
+                
+                <span class="sn">3</span>
+                Application Metadata Inventory
+              </h2>
+              <table>
+                <tr>
+                  <th>Metadata Type</th>
+                  <th>Name</th>
+                  <th>Sys ID</th>
+                  <th>Purpose</th>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Application</strong>
+                  </td>
+                  <td>CSDM 5.0 Explorer</td>
+                  <td>
+                    <code>1c9af66f83340350c07713e0deaad3c3</code>
+                  </td>
+                  <td>Scoped app container</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Table</strong>
+                  </td>
+                  <td>CSDM Scan Result</td>
+                  <td>
+                    <code>aa0fb22f83340350c07713e0deaad33f</code>
+                  </td>
+                  <td>Stores scan history</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Table</strong>
+                  </td>
+                  <td>CSDM Relationship Rule</td>
+                  <td>
+                    <code>de0f0cbaea4c4a6eb4f1c8428b778ad2</code>
+                  </td>
+                  <td>Config: relationship rules</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Script Include</strong>
+                  </td>
+                  <td>CSDMScoreCalculator</td>
+                  <td>
+                    <code>9bbbf090836f0790c07713e0deaad36d</code>
+                  </td>
+                  <td>7-dimension scoring engine</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>REST API</strong>
+                  </td>
+                  <td>CSDM 5.0 Explorer API</td>
+                  <td>
+                    <code>59998b3e3e4a4b1a8e6ec136e940c626</code>
+                  </td>
+                  <td>HTTP endpoints</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>REST Operation</strong>
+                  </td>
+                  <td>CSDM Overview (GET)</td>
+                  <td>
+                    <code>0e99bd8bafd14e968ff0afe341ba342f</code>
+                  </td>
+                  <td>Triggers full scan</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>REST Operation</strong>
+                  </td>
+                  <td>Live CMDB Query (POST)</td>
+                  <td>
+                    <code>ccf3870f05fe494a88b492be9e2f5a6e</code>
+                  </td>
+                  <td>Ad-hoc CMDB queries</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>UI Page</strong>
+                  </td>
+                  <td>explorer</td>
+                  <td>
+                    <code>e61020f28d994569a8b1e98f18c02385</code>
+                  </td>
+                  <td>3D visualization frontend</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>App Module</strong>
+                  </td>
+                  <td>3D Explorer</td>
+                  <td>
+                    <code>63e0abab7c374d80bbe9bd2730abae80</code>
+                  </td>
+                  <td>Navigator: opens UI page</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>App Module</strong>
+                  </td>
+                  <td>Scan Results</td>
+                  <td>
+                    <code>a6316179af614ab99ac3c59c9a9aec1f</code>
+                  </td>
+                  <td>Navigator: scan result list</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>App Module</strong>
+                  </td>
+                  <td>Relationship Rules</td>
+                  <td>
+                    <code>9d137d8b12194f8e97dcefe6617b0a56</code>
+                  </td>
+                  <td>Navigator: config table list</td>
+                </tr>
+              </table>
+              <!-- SECTION 4 -->
+              <h2 id="s4">
+                
+                <span class="sn">4</span>
+                Data Model
+              </h2>
+              <h3>
+                4.1 CSDM Scan Result (
+                <code>x_147805_csdmviz_scan_result</code>
+                )
+              </h3>
+              <p>
+                Stores scan output. Auto-number prefix:
+                <strong>CSDM</strong>
+                .
+              </p>
+              <table>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Max Len</th>
+                  <th>Req</th>
+                  <th>Default</th>
+                  <th>Description</th>
+                </tr>
+                <tr>
+                  <td>
+                    <code>scan_name</code>
+                  </td>
+                  <td>String</td>
+                  <td>200</td>
+                  <td>✅</td>
+                  <td>—</td>
+                  <td>Scan identifier</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>scan_date</code>
+                  </td>
+                  <td>DateTime</td>
+                  <td>40</td>
+                  <td></td>
+                  <td>—</td>
+                  <td>Execution timestamp</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>status</code>
+                  </td>
+                  <td>Choice</td>
+                  <td>40</td>
+                  <td></td>
+                  <td>in_progress</td>
+                  <td>completed / in_progress / failed</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>overall_score</code>
+                  </td>
+                  <td>Integer</td>
+                  <td>40</td>
+                  <td></td>
+                  <td>—</td>
+                  <td>Weighted composite (0–100)</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>total_classes</code>
+                  </td>
+                  <td>Integer</td>
+                  <td>40</td>
+                  <td></td>
+                  <td>—</td>
+                  <td>CSDM classes scanned</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>populated_classes</code>
+                  </td>
+                  <td>Integer</td>
+                  <td>40</td>
+                  <td></td>
+                  <td>—</td>
+                  <td>Classes with ≥1 record</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>risk_count</code>
+                  </td>
+                  <td>Integer</td>
+                  <td>40</td>
+                  <td></td>
+                  <td>—</td>
+                  <td>Customization count</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>relationship_issues</code>
+                  </td>
+                  <td>Integer</td>
+                  <td>40</td>
+                  <td></td>
+                  <td>—</td>
+                  <td>Non-compliant rels</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>summary</code>
+                  </td>
+                  <td>String</td>
+                  <td>4000</td>
+                  <td></td>
+                  <td>—</td>
+                  <td>Human-readable summary</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>scan_data</code>
+                  </td>
+                  <td>JSON</td>
+                  <td>65000</td>
+                  <td></td>
+                  <td>—</td>
+                  <td>Full 7-dimension JSON payload</td>
+                </tr>
+              </table>
+              <h3>
+                4.2 CSDM Relationship Rule (
+                <code>x_147805_csdmviz_rel_rule</code>
+                )
+              </h3>
+              <p>Configuration table for CSDM relationship rules. Consumed by both Relationship Compliance and Service Model Depth.</p>
+              <table>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Max Len</th>
+                  <th>Req</th>
+                  <th>Default</th>
+                  <th>Description</th>
+                </tr>
+                <tr>
+                  <td>
+                    <code>active</code>
+                  </td>
+                  <td>Boolean</td>
+                  <td>—</td>
+                  <td></td>
+                  <td>true</td>
+                  <td>Evaluated during scans</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>parent_class</code>
+                  </td>
+                  <td>String</td>
+                  <td>80</td>
+                  <td>✅</td>
+                  <td>—</td>
+                  <td>Parent CI class</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>relationship_type</code>
+                  </td>
+                  <td>String</td>
+                  <td>100</td>
+                  <td>✅</td>
+                  <td>—</td>
+                  <td>Forward::Reverse format</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>child_class</code>
+                  </td>
+                  <td>String</td>
+                  <td>80</td>
+                  <td>✅</td>
+                  <td>—</td>
+                  <td>Child CI class</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>child_instance_of</code>
+                  </td>
+                  <td>Boolean</td>
+                  <td>—</td>
+                  <td></td>
+                  <td>false</td>
+                  <td>INSTANCEOF matching</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>category</code>
+                  </td>
+                  <td>String</td>
+                  <td>100</td>
+                  <td></td>
+                  <td>—</td>
+                  <td>Domain category</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>service_model_relevant</code>
+                  </td>
+                  <td>Boolean</td>
+                  <td>—</td>
+                  <td></td>
+                  <td>false</td>
+                  <td>Used in Service Model Depth</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>weight</code>
+                  </td>
+                  <td>Integer</td>
+                  <td>40</td>
+                  <td></td>
+                  <td>1</td>
+                  <td>Rule weight</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>rule_order</code>
+                  </td>
+                  <td>Integer</td>
+                  <td>40</td>
+                  <td></td>
+                  <td>100</td>
+                  <td>Evaluation order</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>description</code>
+                  </td>
+                  <td>String</td>
+                  <td>500</td>
+                  <td></td>
+                  <td>—</td>
+                  <td>Human description</td>
+                </tr>
+              </table>
+              <!-- SECTION 5 -->
+              <h2 id="s5">
+                
+                <span class="sn">5</span>
+                Scoring Engine — CSDMScoreCalculator
+              </h2>
+              <h3>5.1 Overview</h3>
+              <table>
+                <tr>
+                  <th>Property</th>
+                  <th>Value</th>
+                </tr>
+                <tr>
+                  <td>API Name</td>
+                  <td>
+                    <code>x_147805_csdmviz.CSDMScoreCalculator</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Accessible From</td>
+                  <td>Package-private</td>
+                </tr>
+                <tr>
+                  <td>Client Callable</td>
+                  <td>No</td>
+                </tr>
+                <tr>
+                  <td>Pattern</td>
+                  <td>
+                    
+                    <code>Class.create()</code>
+                    with prototype
+                  </td>
+                </tr>
+              </table>
+              <h3>5.2 Scoring Formula</h3>
+              <div class="formula">
+                
+                <strong>Overall Score</strong>
+                = (D1 × 0.15) + (D2 × 0.20) + (D3 × 0.20) + (D4 × 0.15) + (D5 × 0.10) + (D6 × 0.10) + (D7 × 0.10)
+              </div>
+              <table>
+                <tr>
+                  <th>#</th>
+                  <th>Dimension</th>
+                  <th>Weight</th>
+                  <th>Method</th>
+                </tr>
+                <tr>
+                  <td>1</td>
+                  <td>Domain Coverage</td>
+                  <td>15%</td>
+                  <td>
+                    <code>calculateDomainCoverage()</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>2</td>
+                  <td>Data Completeness</td>
+                  <td>20%</td>
+                  <td>
+                    <code>calculateDataCompleteness()</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>3</td>
+                  <td>Service Model Depth</td>
+                  <td>20%</td>
+                  <td>
+                    <code>calculateServiceModelDepth()</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>4</td>
+                  <td>Relationship Compliance</td>
+                  <td>15%</td>
+                  <td>
+                    <code>calculateRelationshipCompliance()</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>5</td>
+                  <td>Lifecycle Governance</td>
+                  <td>10%</td>
+                  <td>
+                    <code>calculateLifecycleGovernance()</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>6</td>
+                  <td>Data Hygiene</td>
+                  <td>10%</td>
+                  <td>
+                    <code>calculateDataHygiene()</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>7</td>
+                  <td>Customization Risk</td>
+                  <td>10%</td>
+                  <td>
+                    <code>calculateCustomizationRisk()</code>
+                  </td>
+                </tr>
+              </table>
+              <h3>5.3 Public Methods</h3>
+              <table>
+                <tr>
+                  <th>Method</th>
+                  <th>Returns</th>
+                  <th>Description</th>
+                </tr>
+                <tr>
+                  <td>
+                    <code>runFullScan()</code>
+                  </td>
+                  <td>Full result object</td>
+                  <td>Orchestrates all 7 dimensions, persists result</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>calculateDomainCoverage()</code>
+                  </td>
+                  <td>
+                    <code>{score, weight, label, details}</code>
+                  </td>
+                  <td>Dimension 1</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>calculateDataCompleteness()</code>
+                  </td>
+                  <td>
+                    <code>{score, weight, label, details}</code>
+                  </td>
+                  <td>Dimension 2</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>calculateServiceModelDepth()</code>
+                  </td>
+                  <td>
+                    <code>{score, weight, label, details}</code>
+                  </td>
+                  <td>Dimension 3 (orchestrator)</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>calculateRelationshipCompliance()</code>
+                  </td>
+                  <td>
+                    <code>{score, weight, label, details}</code>
+                  </td>
+                  <td>Dimension 4</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>calculateLifecycleGovernance()</code>
+                  </td>
+                  <td>
+                    <code>{score, weight, label, details}</code>
+                  </td>
+                  <td>Dimension 5</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>calculateDataHygiene()</code>
+                  </td>
+                  <td>
+                    <code>{score, weight, label, details}</code>
+                  </td>
+                  <td>Dimension 6</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>calculateCustomizationRisk()</code>
+                  </td>
+                  <td>
+                    <code>{score, weight, label, details}</code>
+                  </td>
+                  <td>Dimension 7</td>
+                </tr>
+              </table>
+              <h3>5.4 Private Methods</h3>
+              <table>
+                <tr>
+                  <th>Method</th>
+                  <th>Description</th>
+                </tr>
+                <tr>
+                  <td>
+                    <code>_clamp(value, min, max)</code>
+                  </td>
+                  <td>Numeric clamping utility</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>_validateTable(tableName)</code>
+                  </td>
+                  <td>Verifies table via
+                    <code>GlideRecord.isValid()</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>_getTableCount(tableName)</code>
+                  </td>
+                  <td>GlideAggregate COUNT with validation</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>_countRels(parent, relName, child, useInstanceOf)</code>
+                  </td>
+                  <td>Count matching relationships</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>_countRelsBetweenPairAnyType(parent, child, useInstanceOf)</code>
+                  </td>
+                  <td>Count all rels between class pair</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>_countDistinctParentsWithRel(parent, relName, child, useInstanceOf)</code>
+                  </td>
+                  <td>Count distinct parents with relationship</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>_getActiveRelationshipRules()</code>
+                  </td>
+                  <td>Loads rules from config table (scan-level cache)</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>_getServiceModelLevels()</code>
+                  </td>
+                  <td>Returns 6 hierarchy level definitions</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>_calculateServiceModelPopulation()</code>
+                  </td>
+                  <td>Sub-component: 30% of SM Depth</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>_calculateServiceModelRelationships()</code>
+                  </td>
+                  <td>Sub-component: 50% of SM Depth</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>_calculateServiceModelChainDepth()</code>
+                  </td>
+                  <td>Sub-component: 20% of SM Depth</td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>_saveScanResult(result)</code>
+                  </td>
+                  <td>Persists to scan_result table</td>
+                </tr>
+              </table>
+              <!-- SECTION 6 -->
+              <h2 id="s6">
+                
+                <span class="sn">6</span>
+                Dimension Calculations — Detailed Logic
+              </h2>
+              <h3>6.1 Domain Coverage (15%)</h3>
+              <p>
+                
+                <strong>Purpose:</strong>
+                Measures whether all 5 CSDM domain layers contain data.
+              </p>
+              <table>
+                <tr>
+                  <th>Domain</th>
+                  <th>Tables Checked (24 total)</th>
+                </tr>
+                <tr>
+                  <td>Foundation</td>
+                  <td>
+                    <code>cmdb_ci_server</code>
+                    ,
+                    <code>cmdb_ci_computer</code>
+                    ,
+                    <code>cmdb_ci_vm_instance</code>
+                    ,
+                    <code>cmdb_ci_network_gear</code>
+                    ,
+                    <code>cmdb_ci_storage_device</code>
+                    ,
+                    <code>cmdb_ci_database_instance</code>
+                    ,
+                    <code>cmn_location</code>
+                    ,
+                    <code>core_company</code>
+                    ,
+                    <code>cmn_department</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Design – App Portfolio</td>
+                  <td>
+                    <code>cmdb_ci_business_app</code>
+                    ,
+                    <code>cmdb_ci_appl</code>
+                    ,
+                    <code>cmdb_software_instance</code>
+                    ,
+                    <code>cmdb_ci_spkg</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Manage Technical</td>
+                  <td>
+                    <code>cmdb_ci_service_technical</code>
+                    ,
+                    <code>cmdb_ci_service_auto</code>
+                    ,
+                    <code>cmdb_ci_service_discovered</code>
+                    ,
+                    <code>cmdb_ci_endpoint</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Manage Business</td>
+                  <td>
+                    <code>cmdb_ci_service</code>
+                    ,
+                    <code>service_offering</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Sell/Consume</td>
+                  <td>
+                    <code>sc_cat_item</code>
+                    ,
+                    <code>sc_request</code>
+                    ,
+                    <code>incident</code>
+                    ,
+                    <code>change_request</code>
+                  </td>
+                </tr>
+              </table>
+              <div class="formula">score = (populatedTables / totalTables) × 100</div>
+              <h3>6.2 Data Completeness (20%)</h3>
+              <p>
+                
+                <strong>Purpose:</strong>
+                Measures critical field fill-rates on 3 key CMDB tables.
+              </p>
+              <table>
+                <tr>
+                  <th>Table</th>
+                  <th>Critical Fields</th>
+                </tr>
+                <tr>
+                  <td>
+                    <code>cmdb_ci_server</code>
+                  </td>
+                  <td>
+                    <code>name</code>
+                    ,
+                    <code>ip_address</code>
+                    ,
+                    <code>os</code>
+                    ,
+                    <code>serial_number</code>
+                    ,
+                    <code>ram</code>
+                    ,
+                    <code>cpu_count</code>
+                    ,
+                    <code>manufacturer</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>cmdb_ci_appl</code>
+                  </td>
+                  <td>
+                    <code>name</code>
+                    ,
+                    <code>version</code>
+                    ,
+                    <code>install_status</code>
+                    ,
+                    <code>owned_by</code>
+                    ,
+                    <code>managed_by</code>
+                    ,
+                    <code>used_for</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>cmdb_ci_service</code>
+                  </td>
+                  <td>
+                    <code>name</code>
+                    ,
+                    <code>owned_by</code>
+                    ,
+                    <code>managed_by</code>
+                    ,
+                    <code>service_classification</code>
+                    ,
+                    <code>used_for</code>
+                    ,
+                    <code>busines_criticality</code>
+                  </td>
+                </tr>
+              </table>
+              <div class="formula">score = average(completeness per table) where completeness = (completeRecords / totalRecords) × 100</div>
+              <h3>6.3 Service Model Depth (20%) — 3-Component Composite</h3>
+              <div class="formula">Service Model Depth = (Population × 0.30) + (Relationship Coverage × 0.50) + (Chain Depth × 0.20)</div>
+              <h4>A. Population (30%)</h4>
+              <table>
+                <tr>
+                  <th>Order</th>
+                  <th>Level</th>
+                  <th>Table</th>
+                </tr>
+                <tr>
+                  <td>1</td>
+                  <td>Business Service</td>
+                  <td>
+                    <code>cmdb_ci_service</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>2</td>
+                  <td>Service Offering</td>
+                  <td>
+                    <code>service_offering</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>3</td>
+                  <td>Technical Service</td>
+                  <td>
+                    <code>cmdb_ci_service_technical</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>4</td>
+                  <td>Application Service</td>
+                  <td>
+                    <code>cmdb_ci_service_auto</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>5</td>
+                  <td>Application</td>
+                  <td>
+                    <code>cmdb_ci_appl</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>6</td>
+                  <td>Infrastructure</td>
+                  <td>
+                    <code>cmdb_ci_server</code>
+                  </td>
+                </tr>
+              </table>
+              <div class="formula">score = (populatedLevels / 6) × 100</div>
+              <h4>B. Relationship Coverage (50%)</h4>
+              <p>
+                For each rule marked
+                <code>service_model_relevant=true</code>
+                :
+              </p>
+              <div class="formula">coverage = distinctParentsWithRelationship / totalParentCIs
+                <br>score = average(coverage per rule) × 100</br>
+                <h4>C. Chain Depth (20%)</h4>
+                <div class="diagram">Business Service
+       ↓  (Depends on::Used by)
+Application Service
+       ↓  (Depends on::Used by)
+Application
+       ↓  (Runs on::Runs)
+Infrastructure</div>
+                <div class="formula">score = (connectedLinks / totalPossibleLinks) × 100</div>
+                <h3>6.4 Relationship Compliance (15%) — 4-Sub-Metric Composite</h3>
+                <div class="formula">Score = (Type Correctness × 0.40) + (Class-Pair Match × 0.30) + (Coverage × 0.20) + (Integrity × 0.10)</div>
+                <table>
+                  <tr>
+                    <th>Sub-Metric</th>
+                    <th>Weight</th>
+                    <th>Measures</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <strong>Type Correctness</strong>
+                    </td>
+                    <td>40%</td>
+                    <td>Rels between expected pairs using CSDM-expected type</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <strong>Class-Pair Match</strong>
+                    </td>
+                    <td>30%</td>
+                    <td>In-scope rels connecting expected class pairs</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <strong>Coverage</strong>
+                    </td>
+                    <td>20%</td>
+                    <td>Avg % of parent CIs with expected relationships</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <strong>Integrity</strong>
+                    </td>
+                    <td>10%</td>
+                    <td>Rels free of retired/orphaned CI references</td>
+                  </tr>
+                </table>
+                <h3>6.5 Lifecycle Governance (10%)</h3>
+                <p>
+                  <strong>Tables:</strong>
+                  <code>cmdb_ci_server</code>
+                  ,
+                  <code>cmdb_ci_appl</code>
+                  ,
+                  <code>cmdb_ci_service</code>
+                  ,
+                  <code>cmdb_ci_service_technical</code>
+                </p>
+                <p>
+                  
+                  <strong>Checks:</strong>
+                  <code>life_cycle_stage</code>
+                  OR
+                  <code>life_cycle_stage_status</code>
+                  non-empty.
+                </p>
+                <div class="formula">score = (CIsWithLifecycle / totalCriticalCIs) × 100</div>
+                <h3>6.6 Data Hygiene (10%)</h3>
+                <table>
+                  <tr>
+                    <th>Check</th>
+                    <th>Logic</th>
+                  </tr>
+                  <tr>
+                    <td>Stale CIs</td>
+                    <td>
+                      
+                      <code>sys_updated_on</code>
+                      &lt; (now − 180 days)
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Orphaned CIs</td>
+                    <td>
+                      Not in
+                      <code>cmdb_rel_ci</code>
+                      as parent or child
+                    </td>
+                  </tr>
+                </table>
+                <div class="formula">score = max(0, 100 − (stale/total × 50) − (orphaned/total × 50))</div>
+                <h3>6.7 Customization Risk (10%)</h3>
+                <table>
+                  <tr>
+                    <th>Risk Type</th>
+                    <th>Source</th>
+                    <th>Severity</th>
+                    <th>Penalty</th>
+                  </tr>
+                  <tr>
+                    <td>Custom fields</td>
+                    <td>
+                      
+                      <code>sys_dictionary</code>
+                      (
+                      <code>u_*</code>
+                      )
+                    </td>
+                    <td>
+                      <span class="badge badge-orange">Medium</span>
+                    </td>
+                    <td>−5 each</td>
+                  </tr>
+                  <tr>
+                    <td>Custom BRs</td>
+                    <td>
+                      
+                      <code>sys_script</code>
+                      (non-global, active)
+                    </td>
+                    <td>
+                      <span class="badge badge-red">High</span>
+                    </td>
+                    <td>−10 each</td>
+                  </tr>
+                </table>
+                <div class="formula">score = max(0, 100 − (high×10 + medium×5 + low×2))</div>
+                <!-- SECTION 7 -->
+                <h2 id="s7">
+                  
+                  <span class="sn">7</span>
+                  REST API
+                </h2>
+                <table>
+                  <tr>
+                    <th>Property</th>
+                    <th>Value</th>
+                  </tr>
+                  <tr>
+                    <td>Base URI</td>
+                    <td>
+                      <code>/api/x_147805_csdmviz/csdm_explorer</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Service ID</td>
+                    <td>
+                      <code>csdm_explorer</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Consumes/Produces</td>
+                    <td>
+                      <code>application/json</code>
+                    </td>
+                  </tr>
+                </table>
+                <h3>7.1 GET /overview</h3>
+                <pre>(function(request, response) {
+    try {
+        var calculator = new x_147805_csdmviz.CSDMScoreCalculator();
+        var result = calculator.runFullScan();
+        response.setStatus(200);
+        response.setBody(result);
+    } catch(ex) {
+        response.setStatus(500);
+        response.setBody(JSON.stringify({ error: 'Scan failed: ' + ex.message, score: 0 }));
+    }
+})(request, response);</pre>
+                <h3>7.2 POST /query</h3>
+                <pre>Request: { "table": "cmdb_ci_server", "query": "os=Linux", "fields": ["sys_id","name"], "limit": 25 }
+Response: { "table": "cmdb_ci_server", "count": 10, "records": [...] }</pre>
+                <!-- SECTION 8 -->
+                <h2 id="s8">
+                  
+                  <span class="sn">8</span>
+                  Seed Configuration — 14 CSDM Relationship Rules
+                </h2>
+                <table>
+                  <tr>
+                    <th>#</th>
+                    <th>Parent</th>
+                    <th>Relationship</th>
+                    <th>Child</th>
+                    <th>Inst</th>
+                    <th>Category</th>
+                    <th>SM</th>
+                  </tr>
+                  <tr>
+                    <td>1</td>
+                    <td>
+                      <code>cmdb_ci_appl</code>
+                    </td>
+                    <td>Runs on::Runs</td>
+                    <td>
+                      <code>cmdb_ci_server</code>
+                    </td>
+                    <td>✅</td>
+                    <td>Tech→Found</td>
+                    <td>✅</td>
+                  </tr>
+                  <tr>
+                    <td>2</td>
+                    <td>
+                      <code>cmdb_ci_appl</code>
+                    </td>
+                    <td>Runs on::Runs</td>
+                    <td>
+                      <code>cmdb_ci_vm_instance</code>
+                    </td>
+                    <td>✅</td>
+                    <td>Tech→Found</td>
+                    <td>✅</td>
+                  </tr>
+                  <tr>
+                    <td>3</td>
+                    <td>
+                      <code>cmdb_ci_appl</code>
+                    </td>
+                    <td>Uses::Used by</td>
+                    <td>
+                      <code>cmdb_ci_database_instance</code>
+                    </td>
+                    <td>✅</td>
+                    <td>Tech→Found</td>
+                    <td></td>
+                  </tr>
+                  <tr>
+                    <td>4</td>
+                    <td>
+                      <code>cmdb_ci_database_instance</code>
+                    </td>
+                    <td>Hosted on::Hosts</td>
+                    <td>
+                      <code>cmdb_ci_server</code>
+                    </td>
+                    <td>✅</td>
+                    <td>Found→Found</td>
+                    <td></td>
+                  </tr>
+                  <tr>
+                    <td>5</td>
+                    <td>
+                      <code>cmdb_ci_database_instance</code>
+                    </td>
+                    <td>Hosted on::Hosts</td>
+                    <td>
+                      <code>cmdb_ci_vm_instance</code>
+                    </td>
+                    <td>✅</td>
+                    <td>Found→Found</td>
+                    <td></td>
+                  </tr>
+                  <tr>
+                    <td>6</td>
+                    <td>
+                      <code>cmdb_ci_vm_instance</code>
+                    </td>
+                    <td>Virtualized by::Virtualizes</td>
+                    <td>
+                      <code>cmdb_ci_server</code>
+                    </td>
+                    <td>✅</td>
+                    <td>Found→Found</td>
+                    <td></td>
+                  </tr>
+                  <tr>
+                    <td>7</td>
+                    <td>
+                      <code>cmdb_ci_service_auto</code>
+                    </td>
+                    <td>Depends on::Used by</td>
+                    <td>
+                      <code>cmdb_ci_appl</code>
+                    </td>
+                    <td></td>
+                    <td>Tech→Design</td>
+                    <td>✅</td>
+                  </tr>
+                  <tr>
+                    <td>8</td>
+                    <td>
+                      <code>cmdb_ci_service_technical</code>
+                    </td>
+                    <td>Contains::Contained by</td>
+                    <td>
+                      <code>cmdb_ci_service_auto</code>
+                    </td>
+                    <td></td>
+                    <td>Tech→Tech</td>
+                    <td>✅</td>
+                  </tr>
+                  <tr>
+                    <td>9</td>
+                    <td>
+                      <code>cmdb_ci_service</code>
+                    </td>
+                    <td>Depends on::Used by</td>
+                    <td>
+                      <code>cmdb_ci_service_auto</code>
+                    </td>
+                    <td></td>
+                    <td>Biz→Tech</td>
+                    <td>✅</td>
+                  </tr>
+                  <tr>
+                    <td>10</td>
+                    <td>
+                      <code>cmdb_ci_service</code>
+                    </td>
+                    <td>Provides::Provided by</td>
+                    <td>
+                      <code>service_offering</code>
+                    </td>
+                    <td></td>
+                    <td>Biz→S/C</td>
+                    <td>✅</td>
+                  </tr>
+                  <tr>
+                    <td>11</td>
+                    <td>
+                      <code>cmdb_ci_business_app</code>
+                    </td>
+                    <td>Uses::Used by</td>
+                    <td>
+                      <code>cmdb_ci_service_auto</code>
+                    </td>
+                    <td></td>
+                    <td>Design→Tech</td>
+                    <td></td>
+                  </tr>
+                  <tr>
+                    <td>12</td>
+                    <td>
+                      <code>cmdb_ci_business_app</code>
+                    </td>
+                    <td>Depends on::Used by</td>
+                    <td>
+                      <code>cmdb_ci_appl</code>
+                    </td>
+                    <td></td>
+                    <td>Design→Design</td>
+                    <td></td>
+                  </tr>
+                  <tr>
+                    <td>13</td>
+                    <td>
+                      <code>cmdb_software_instance</code>
+                    </td>
+                    <td>Installed on::Has installed</td>
+                    <td>
+                      <code>cmdb_ci_computer</code>
+                    </td>
+                    <td>✅</td>
+                    <td>Design→Found</td>
+                    <td></td>
+                  </tr>
+                  <tr>
+                    <td>14</td>
+                    <td>
+                      <code>cmdb_software_instance</code>
+                    </td>
+                    <td>Installed on::Has installed</td>
+                    <td>
+                      <code>cmdb_ci_server</code>
+                    </td>
+                    <td>✅</td>
+                    <td>Design→Found</td>
+                    <td></td>
+                  </tr>
+                </table>
+                <!-- SECTION 9 -->
+                <h2 id="s9">
+                  
+                  <span class="sn">9</span>
+                  UI &amp; Navigation
+                </h2>
+                <table>
+                  <tr>
+                    <th>Module</th>
+                    <th>Order</th>
+                    <th>Type</th>
+                    <th>Target</th>
+                  </tr>
+                  <tr>
+                    <td>3D Explorer</td>
+                    <td>100</td>
+                    <td>DIRECT</td>
+                    <td>
+                      <code>x_147805_csdmviz_explorer.do</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Scan Results</td>
+                    <td>200</td>
+                    <td>LIST</td>
+                    <td>
+                      <code>x_147805_csdmviz_scan_result</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Relationship Rules</td>
+                    <td>300</td>
+                    <td>LIST</td>
+                    <td>
+                      <code>x_147805_csdmviz_rel_rule</code>
+                    </td>
+                  </tr>
+                </table>
+                <!-- SECTION 10 -->
+                <h2 id="s10">
+                  
+                  <span class="sn">10</span>
+                  Scan Execution Flow
+                </h2>
+                <div class="diagram">User clicks "Scan Now"
+       │
+       ▼
+GET /api/x_147805_csdmviz/csdm_explorer/overview
+       │
+       ▼
+new CSDMScoreCalculator().runFullScan()
+       │
+       ├──► _getActiveRelationshipRules()  → load 14 rules (cached)
+       │
+       ├──► calculateDomainCoverage()       → GlideAggregate × 24 tables
+       ├──► calculateDataCompleteness()     → GlideAggregate + GlideRecord × 3 tables
+       ├──► calculateServiceModelDepth()    → 3 sub-components
+       │       ├── _calculateServiceModelPopulation()     (30%)
+       │       ├── _calculateServiceModelRelationships()  (50%)
+       │       └── _calculateServiceModelChainDepth()     (20%)
+       ├──► calculateRelationshipCompliance() → per-rule queries + integrity
+       ├──► calculateLifecycleGovernance()    → lifecycle field checks × 4 tables
+       ├──► calculateDataHygiene()            → stale + orphan detection
+       └──► calculateCustomizationRisk()      → sys_dictionary + sys_script
+       │
+       ▼
+Compute weighted overall score
+       │
+       ▼
+_saveScanResult() → INSERT into x_147805_csdmviz_scan_result
+       │
+       ▼
+Return full JSON → 200 OK → UI renders 3D visualization</div>
+                <!-- SECTION 11 -->
+                <h2 id="s11">
+                  
+                  <span class="sn">11</span>
+                  Caching &amp; Performance
+                </h2>
+                <table>
+                  <tr>
+                    <th>Mechanism</th>
+                    <th>Scope</th>
+                    <th>What</th>
+                    <th>Purpose</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>this._cachedRules</code>
+                    </td>
+                    <td>Per-scan</td>
+                    <td>Relationship rules</td>
+                    <td>Avoids re-querying config table</td>
+                  </tr>
+                  <tr>
+                    <td>GlideAggregate</td>
+                    <td>Per-query</td>
+                    <td>Record counts</td>
+                    <td>Database-side aggregation</td>
+                  </tr>
+                  <tr>
+                    <td>Bounded traversal</td>
+                    <td>Per-scan</td>
+                    <td>Chain depth</td>
+                    <td>Stops at first broken link</td>
+                  </tr>
+                </table>
+                <p>
+                  
+                  <strong>Estimated queries per scan:</strong>
+                  ~80–120
+                </p>
+                <!-- SECTION 12 -->
+                <h2 id="s12">
+                  
+                  <span class="sn">12</span>
+                  Error Handling
+                </h2>
+                <table>
+                  <tr>
+                    <th>Pattern</th>
+                    <th>Implementation</th>
+                  </tr>
+                  <tr>
+                    <td>Table validation</td>
+                    <td>
+                      <code>_validateTable()</code>
+                      →
+                      <code>GlideRecord.isValid()</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Invalid config</td>
+                    <td>Skips bad rule, continues scan</td>
+                  </tr>
+                  <tr>
+                    <td>Query failures</td>
+                    <td>
+                      
+                      <code>try/catch</code>
+                      +
+                      <code>gs.warn()</code>
+                      , returns 0
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Scan failure</td>
+                    <td>REST API returns 500 with error</td>
+                  </tr>
+                  <tr>
+                    <td>Save failure</td>
+                    <td>
+                      
+                      <code>gs.error()</code>
+                      , returns null
+                    </td>
+                  </tr>
+                </table>
+                <!-- SECTION 13 -->
+                <h2 id="s13">
+                  
+                  <span class="sn">13</span>
+                  File Structure
+                </h2>
+                <pre>x_147805_csdmviz/
+├── src/
+│   ├── fluent/
+│   │   ├── index.now.ts                         ← Entry point
+│   │   ├── script-includes/
+│   │   │   └── csdm-score-calculator.now.ts     ← SI Fluent definition
+│   │   ├── tables/
+│   │   │   └── relationship-rule.now.ts         ← Config table + 14 seeds + module
+│   │   └── generated/                           ← Auto-generated (do not edit)
+│   └── server/
+│       └── script-includes/
+│           └── csdm-score-calculator.js          ← Core scoring engine (~600 lines)
+├── now.config.json
+├── package.json
+└── tsconfig.json</pre>
+                <!-- SECTION 14 -->
+                <h2 id="s14">
+                  
+                  <span class="sn">14</span>
+                  Configuration &amp; Administration
+                </h2>
+                <h3>Adding a New Relationship Rule</h3>
+                <ol>
+                  <li>Navigate to
+                    <strong>CSDM 5.0 Explorer → Relationship Rules</strong>
+                  </li>
+                  <li>Click
+                    <strong>New</strong>
+                  </li>
+                  <li>Fill in Parent Class, Relationship Type (Forward::Reverse), Child Class</li>
+                  <li>
+                    Set
+                    <code>Service Model Relevant = true</code>
+                    if needed for depth scoring
+                  </li>
+                  <li>Set
+                    <code>Active = true</code>
+                  </li>
+                  <li>Save — next scan uses it automatically</li>
+                </ol>
+                <div class="info">
+                  
+                  <strong>No code change required.</strong>
+                  Both Relationship Compliance and Service Model Depth recognize new rules immediately.
+                </div>
+                <!-- SECTION 15 -->
+                <h2 id="s15">
+                  
+                  <span class="sn">15</span>
+                  Dependencies
+                </h2>
+                <table>
+                  <tr>
+                    <th>Dependency</th>
+                    <th>Used For</th>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>GlideRecord</code>
+                    </td>
+                    <td>Table validation, record queries, persistence</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>GlideAggregate</code>
+                    </td>
+                    <td>All COUNT and DISTINCT aggregations</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>GlideDateTime</code>
+                    </td>
+                    <td>Timestamps, stale CI threshold</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>cmdb_rel_ci</code>
+                    </td>
+                    <td>Relationship analysis</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>sys_dictionary</code>
+                    </td>
+                    <td>Custom field detection</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>sys_script</code>
+                    </td>
+                    <td>Custom BR detection</td>
+                  </tr>
+                </table>
+                <!-- SECTION 16 -->
+                <h2 id="s16">
+                  
+                  <span class="sn">16</span>
+                  Security Considerations
+                </h2>
+                <table>
+                  <tr>
+                    <th>Area</th>
+                    <th>Implementation</th>
+                  </tr>
+                  <tr>
+                    <td>REST authentication</td>
+                    <td>Required</td>
+                  </tr>
+                  <tr>
+                    <td>REST ACL</td>
+                    <td>Internal role required</td>
+                  </tr>
+                  <tr>
+                    <td>Config table</td>
+                    <td>Scoped app ACL model</td>
+                  </tr>
+                  <tr>
+                    <td>Script Include</td>
+                    <td>
+                      <code>package_private</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Client callable</td>
+                    <td>No</td>
+                  </tr>
+                  <tr>
+                    <td>Query safety</td>
+                    <td>Server-side config only,
+                      <code>_validateTable()</code>
+                    </td>
+                  </tr>
+                </table>
+                <hr class="footer">
+                  <p style="text-align:center;color:#888;font-size:10pt;">
+                    <em>CSDM 5.0 Explorer — Technical Design Document v1.0</em>
+                    <br>
+                      <em>Scope: x_147805_csdmviz | September 2026</em>
+                    </br>
+                  </p>
+                </hr>
+              </div>
+            </br>
+          </br>
+        </div>
+      </div>
+    </body>
+  </head>
+</html>]]></html>
+        <name>tech_doc</name>
+        <processing_script/>
+        <sys_class_name>sys_ui_page</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2026-09-30 05:51:12</sys_created_on>
+        <sys_id>2639db79a86d438daa842486c7f424a3</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>tech_doc</sys_name>
+        <sys_package display_value="CSDMViz" source="x_147805_csdmviz">1c9af66f83340350c07713e0deaad3c3</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="CSDMViz">1c9af66f83340350c07713e0deaad3c3</sys_scope>
+        <sys_update_name>sys_ui_page_2639db79a86d438daa842486c7f424a3</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2026-09-30 05:51:12</sys_updated_on>
+    </sys_ui_page>
+</record_update>
